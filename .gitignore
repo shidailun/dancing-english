@@ -37,3 +37,4 @@ build_data/zh_parts/
 build_data/narrate.log
 build_data/*.mp3
 build_data/held/
+.wrangler/
