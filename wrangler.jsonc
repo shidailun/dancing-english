@@ -1,0 +1,10 @@
+// The sealed site, served by Cloudflare at dancing-english.shidailun.com.
+// Assets only, no worker code: every file is ciphertext or the lock screen,
+// so there is nothing for a server to decide. publish.py builds build_data/site
+// and runs `npx wrangler deploy`; wrangler uploads only files whose hash changed.
+{
+  "name": "dancing-english",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "build_data/site" },
+  "routes": [{ "pattern": "dancing-english.shidailun.com", "custom_domain": true }]
+}

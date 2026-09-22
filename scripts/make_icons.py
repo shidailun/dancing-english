@@ -1,28 +1,37 @@
 # -*- coding: utf-8 -*-
 """Home-screen icons for the installed app (iPhone: Add to Home Screen).
 
-One character, 舞 (dance), in the accent colour on the page's black: the same
-mark as the favicon in index.html. Deliberately not a book cover: icons are
-served in the clear, the covers are the publisher's, and there are three of
-them. 舞 is written the same way in Simplified and Traditional, so the Noto
-Serif TC already on this machine draws it correctly.
+Her own covers, as souls-reader's icon is its cover: the three books side by
+side, each scaled to the icon's full height and cut to a third of its width
+around the middle, where the dancers are. The first icon was 舞 in red on
+black, dropped because it looked like any app; this one says Bomboy.
+
+The icons are the one thing served in the clear, and a cover is on every
+bookshop page anyway, so nothing of the text leaks.
 
     python scripts/make_icons.py
 """
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
-OUT = Path(__file__).resolve().parents[1] / 'public' / 'icons'
-FONT = 'C:/Windows/Fonts/NotoSerifTC-VF.ttf'
-BG, HOT = (11, 11, 13), (232, 80, 58)
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / 'public' / 'icons'
+SHELF = ['pas', 'win', 'pie']
+GAP = 0.012                  # a hairline of black between the books, as fraction of n
+BG = (11, 11, 13)
 
 
 def mark(n):
     s = 4                                    # draw big, shrink: smooth edges
-    im = Image.new('RGB', (n * s, n * s), BG)
-    d = ImageDraw.Draw(im)
-    f = ImageFont.truetype(FONT, int(n * s * .66))
-    d.text((n * s / 2, n * s / 2), '舞', font=f, fill=HOT, anchor='mm')
+    N = n * s
+    im = Image.new('RGB', (N, N), BG)
+    gap = round(N * GAP)
+    w = (N - 2 * gap) // 3
+    for i, slug in enumerate(SHELF):
+        c = Image.open(ROOT / 'public' / f'cover-{slug}.jpg').convert('RGB')
+        c = c.resize((round(c.width * N / c.height), N), Image.LANCZOS)
+        x0 = (c.width - w) // 2
+        im.paste(c.crop((x0, 0, x0 + w, N)), (i * (w + gap), 0))
     return im.resize((n, n), Image.LANCZOS)
 
 
