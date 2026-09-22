@@ -57,7 +57,7 @@ VOICES = {
 RATE = '-8%'                    # a shade under natural: this is a reading aid
 EL_MODEL = 'eleven_multilingual_v2'
 MAXCH = 2200                    # ElevenLabs request cap; edge takes a chapter whole
-from books import codes
+from books import codes, book_of
 CODES = codes()
 
 
@@ -220,16 +220,17 @@ def main():
         del argv[i:i + 2]
     if engine not in ENGINES:
         sys.exit(f'unknown engine {engine!r}: choose from {", ".join(ENGINES)}')
-    voice = VOICES[engine]
+    voice = None                # edge: each book's own narrator, from books.py
     if '--voice' in argv:
         i = argv.index('--voice')
         voice = argv[i + 1]
         del argv[i:i + 2]
 
     codes = [a for a in argv if not a.startswith('--')] or CODES
-    print(f'engine: {engine}   voice: {voice}')
     for c in codes:
-        narrate(c, engine, voice, force)
+        v = voice or (book_of(c)['voice'] if engine == 'edge' else VOICES[engine])
+        print(f'engine: {engine}   voice: {v}')
+        narrate(c, engine, v, force)
 
 
 if __name__ == '__main__':
