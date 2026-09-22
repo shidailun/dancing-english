@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dancing English</title>
+<meta name="build" content="dev">
+<!-- Installable: on an iPhone, Safari > Share > Add to Home Screen. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Dancing English">
+<meta name="theme-color" content="#0b0b0d">
+<!-- 舞 (dance), the same mark as the home-screen icons (scripts/make_icons.py),
+     drawn here rather than shipped as a file so the reader stays one file. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='32' y='50' font-size='50' text-anchor='middle' fill='%23e8503a' font-family='serif'%3E%E8%88%9E%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0b0b0d; --panel:#141417; --line:#26262b; --ink:#ece9e4;
+    --dim:#8d8a86; --hot:#e8503a; --zh:#7fd4c1;
+    --serif:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --han:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif;
+    --size:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--serif);
+    -webkit-text-size-adjust:100%;
+    padding-bottom:env(safe-area-inset-bottom);   /* the iPhone home bar */
+  }
+  a{color:var(--hot)}
+  .wrap{max-width:46rem;margin:0 auto;padding:0 16px}
+
+  /* ---------- shelf: the three covers, nothing else ---------- */
+  #shelf{display:none}
+  .shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end;
+    min-height:100vh;padding:calc(env(safe-area-inset-top) + 24px) 0 calc(env(safe-area-inset-bottom) + 24px);
+    align-content:center}
+  .shelf button{background:none;border:0;padding:0;cursor:pointer}
+  .shelf img{display:block;width:100%;border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+
+  /* ---------- library ---------- */
+  #library{display:none}
+  /* The cover fills the screen and stays put; the contents scroll up over it.
+     --ar is the cover's height/width, set per book in showBook(): the three
+     covers are not the same shape, and --coverh is how tall this one is drawn. */
+  #library{--ar:1.5;--rx:.5;--ry:.9;
+    --coverh:min(calc(100vh - env(safe-area-inset-top)), calc(var(--ar) * 100vw))}
+  #cover{position:fixed;left:0;right:0;top:env(safe-area-inset-top);width:100%;
+    height:var(--coverh);object-fit:contain;object-position:top;z-index:0}
+  /* Back to the shelf: a small mark in the corner of the cover. */
+  #toshelf{position:fixed;z-index:3;left:10px;top:calc(env(safe-area-inset-top) + 10px);
+    background:rgba(0,0,0,.35)!important;color:#fff!important;border:1px solid rgba(255,255,255,.5)!important;
+    border-radius:999px;font-size:1.2rem;line-height:1;padding:6px 12px}
+  /* Big translucent button on a plain patch of each cover (books.py 'rev'). */
+  #revbtn{position:absolute;z-index:2;transform:translate(-50%,-50%);
+    left:calc(50% + (var(--rx) - .5) * var(--coverh) / var(--ar));
+    top:calc(env(safe-area-inset-top) + var(--ry) * var(--coverh));
+    background:rgba(0,0,0,.28)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;
+    backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);text-shadow:0 1px 4px #000;
+    font-size:1.02rem;font-weight:700;letter-spacing:.04em;padding:8px 20px;border-radius:999px;white-space:nowrap}
+  #library .wrap{position:relative;z-index:1;padding-top:calc(env(safe-area-inset-top) + var(--coverh))}
+  /* See-through list: the cover stays visible behind it as it scrolls up. */
+  #library .chapters{position:relative;z-index:1;gap:0;margin-top:0;border:0;background:none}
+  #library .chapters li{background:rgba(0,0,0,.3);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);border-top:1px solid rgba(255,255,255,.12)}
+  #library .chapters button{text-shadow:0 1px 3px #000,0 0 8px #000}
+  #library .chapters button:hover{background:rgba(255,255,255,.06)}
+  .hero h1{font-size:2.1rem;line-height:1.1;margin:.1em 0 .1em}
+  .hero .zh{font-family:var(--han);color:var(--zh);font-size:1.25rem;margin:0 0 .5em}
+  .hero .by{color:var(--dim);margin:0 0 1em;font-size:1rem}
+  .hero .note{color:var(--dim);font-size:.85rem;line-height:1.5;max-width:22rem}
+  .brand{display:flex;align-items:center;gap:10px;padding-top:22px}
+  .brand svg{width:26px;height:26px;fill:var(--hot)}
+  .brand span{letter-spacing:.22em;text-transform:uppercase;font-size:.7rem;color:var(--dim)}
+
+  .chapters{list-style:none;margin:8px 0 60px;padding:0;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line)}
+  .chapters li{background:var(--panel)}
+  .chapters button{
+    width:100%;text-align:left;background:none;border:0;color:inherit;
+    font:inherit;padding:14px 16px;cursor:pointer;display:flex;gap:12px;align-items:baseline;
+  }
+  .chapters button:hover{background:#1b1b1f}
+  .chapters .n{color:var(--hot);font-size:.8rem;min-width:1.6em;font-variant-numeric:tabular-nums}
+  .chapters .t{flex:1}
+  .chapters .meta{color:var(--dim);font-size:.72rem;white-space:nowrap}
+  .chapters .done{color:var(--zh)}
+
+  /* ---------- toolbar ---------- */
+  #bar{position:sticky;top:0;z-index:5;background:rgba(11,11,13,.94);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:none}
+  #bar .wrap{display:flex;align-items:center;gap:8px;height:48px}
+  #bar .ttl{flex:1;font-size:.85rem;color:var(--dim);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .btn{background:none;border:1px solid var(--line);color:var(--dim);
+    font:inherit;font-size:.75rem;border-radius:3px;padding:5px 9px;cursor:pointer}
+  .btn:hover{color:var(--ink);border-color:#3a3a40}
+  .btn.on{color:var(--bg);background:var(--hot);border-color:var(--hot)}
+
+  /* ---------- reader ---------- */
+  #reader{display:none;padding-bottom:45vh}
+  .chead{padding:38px 0 26px;border-bottom:1px solid var(--line);margin-bottom:26px}
+  .chead .n{color:var(--hot);letter-spacing:.2em;font-size:.72rem;text-transform:uppercase}
+  .chead h2{cursor:pointer;font-size:1.9rem;margin:.25em 0 .1em;line-height:1.15}
+  .chead .zh{font-family:var(--han);color:var(--zh);font-size:1rem;margin:0}
+  #body p{font-size:var(--size);line-height:1.66;margin:0 0 1.15em;text-align:left}
+  #body p:first-of-type::first-letter{
+    float:left;font-size:3.1em;line-height:.82;padding:.06em .09em 0 0;color:var(--hot);
+  }
+  .sent{cursor:pointer;border-radius:2px;transition:background .12s}
+  .sent:hover{background:#1e1e23}
+  .sent.sel{background:#2c1a16;box-shadow:0 0 0 1px #45231c}
+  .sent.playing{background:#33201a}
+  .w.on{color:var(--hot)}
+  .zhline{display:block;font-family:var(--han);color:var(--zh);font-size:calc(var(--size) * .82);
+    line-height:1.7;margin:.35em 0 0;padding-left:.8em;border-left:2px solid #24443d}
+  .untranslated{color:var(--dim);font-style:italic}
+  .nav{display:flex;justify-content:space-between;gap:12px;margin:40px 0 20px}
+
+  /* ---------- sentence sheet ---------- */
+  #sheet{position:fixed;left:0;right:0;bottom:0;z-index:9;transform:translateY(102%);
+    transition:transform .18s ease-out;background:var(--panel);
+    border-top:1px solid var(--line);box-shadow:0 -20px 50px rgba(0,0,0,.6);
+    max-height:52vh;overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
+  #sheet.open{transform:none}
+  #sheet .wrap{padding:16px 16px 22px}
+  #sheet .en{font-size:1.02rem;line-height:1.6;margin:0 0 .6em}
+  #sheet .en .w{cursor:pointer;border-radius:2px}
+  #sheet .en .w:hover{background:#2a2a30}
+  #sheet .zh{font-family:var(--han);color:var(--zh);font-size:1.12rem;line-height:1.7;margin:0}
+  #sheet .row{display:flex;gap:8px;align-items:center;margin-top:14px}
+  #sheet .x{position:absolute;right:10px;top:8px}
+  .gloss{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:.92rem;display:none}
+  .gloss b{color:var(--ink)}
+  .gloss .ipa{color:var(--dim);font-family:var(--serif);margin-left:.4em}
+  .gloss .zh{font-family:var(--han);color:var(--zh);display:block;margin-top:.25em;font-size:1.05rem}
+  .btn:disabled{opacity:.35;cursor:default}
+
+  /* ---------- view modes: Segment · Sentence · Paragraph · Chapter ---------- */
+  #bar .modes{height:auto;padding-bottom:8px;gap:4px}
+  #bar .modes .btn{flex:1}
+  #step{display:none;padding:6px 0 30px;touch-action:pan-y}
+  #step .en{font-size:calc(var(--size) * 1.2);line-height:1.6;margin:0 0 .7em;min-height:3.2em}
+  #step .en .w{cursor:pointer;border-radius:2px}
+  #step .en .w:hover{background:#2a2a30}
+  #step .zh{font-family:var(--han);color:var(--zh);font-size:calc(var(--size) * 1.02);
+    line-height:1.75;margin:0}
+  .ctl{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin-top:18px;flex-wrap:wrap}
+  .ctl .pos{color:var(--dim);font-size:.8rem}
+  .ctl input[type=number]{width:4.2em;background:var(--panel);color:var(--ink);
+    border:1px solid var(--line);border-radius:3px;font:inherit;font-size:.8rem;padding:3px 5px}
+  .ctl label{color:var(--dim);font-size:.75rem;display:flex;align-items:center;gap:6px}
+
+  /* ---------- lock ---------- */
+  #lock{display:none}
+  #lock form{max-width:22rem;margin:18vh auto 0;display:flex;flex-direction:column;gap:12px}
+  #lock h1{font-size:1.5rem;margin:0}
+  #lock p{color:var(--dim);font-size:.9rem;line-height:1.5;margin:0}
+  #lock input[type=password]{background:var(--panel);color:var(--ink);border:1px solid var(--line);
+    border-radius:4px;font:inherit;font-size:1.1rem;padding:10px 12px;letter-spacing:.08em}
+  #lock label{color:var(--dim);font-size:.85rem;display:flex;gap:8px;align-items:center}
+  #lock .go{padding:10px;font-size:1rem;color:var(--ink);border-color:var(--hot)}
+  #lockmsg{min-height:1.4em;color:var(--hot)!important}
+  .libbar{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .libbar .btn{font-size:.9rem;padding:8px 14px}
+  #revbtn{color:var(--ink);border-color:var(--hot)}
+
+  /* ---------- vocabulary / review ---------- */
+  .w.lrn{text-decoration:underline dotted var(--hot);text-underline-offset:.2em}
+  .gact{display:flex;gap:10px;align-items:center;margin-top:8px}
+  .gnote{color:var(--dim);font-size:.8rem}
+  #review{display:none;padding-bottom:40px}
+  .rtop{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+  .rtop span{color:var(--dim);font-size:.85rem}
+  .rcard{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:26px 20px;
+    text-align:center;touch-action:pan-x}
+  .rword{font-size:2.3rem;margin:.2em 0 .3em;word-break:break-word}
+  .rword.zh,.rzh{font-family:var(--han);color:var(--zh)}
+  .rword.zh{font-size:1.9rem}
+  .rzh{font-size:1.6rem;margin:.2em 0}
+  #rword2{font-size:1.9rem;margin:.1em 0}
+  .ripa{color:var(--dim);font-size:1.05rem}
+  #ranswer{display:none;border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+  .rex{text-align:left;margin-top:18px}
+  .rex .en{font-size:1.05rem;line-height:1.6;margin:0 0 .4em}
+  .rex .en .w{cursor:pointer;border-radius:2px}
+  .rex .w.hit{background:#3a2019;color:var(--ink)}
+  .rex .w.on{color:var(--hot)}
+  .rex .zh{font-family:var(--han);color:var(--zh);font-size:1.05rem;line-height:1.7;margin:0}
+  .rrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+  #ractions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+  .ract{font:inherit;font-size:.95rem;border-radius:5px;padding:12px 4px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);line-height:1.2}
+  .ract span{display:block;color:var(--dim);font-size:.72rem;margin-top:3px}
+  .ract.show{grid-column:1 / -1;border-color:var(--hot)}
+  .ract.again{border-color:#6b2a22}.ract.hard{border-color:#6b5222}
+  .ract.good{border-color:#265a3a}.ract.easy{border-color:#24506b}
+  #rdone{display:none;text-align:center;padding:60px 0}
+  #rdone p{color:var(--dim)}
+
+  @media (max-width:640px){
+    :root{--size:19px}
+  }
+</style>
+</head>
+<body>
+
+<div id="lock">
+  <div class="wrap">
+    <form id="lockf" autocomplete="off">
+      <input type="password" id="pw" autocomplete="current-password" aria-label="Password">
+      <input type="checkbox" id="remember" checked hidden>
+      <button class="btn go" type="submit">Open</button>
+      <p id="lockmsg"></p>
+    </form>
+  </div>
+</div>
+
+<div id="shelf">
+  <div class="wrap"><div class="shelf" id="books"></div></div>
+</div>
+
+<div id="library">
+  <div class="wrap">
+    <img id="cover" alt="">
+    <button class="btn" id="toshelf" aria-label="Books">&lsaquo;</button>
+    <button class="btn" id="revbtn">Word Review</button>
+    <div class="hero" hidden><h1 id="btitle"></h1><p class="zh" id="bzh"></p></div>
+    <div hidden>
+      <button class="btn" id="offbtn">Save for offline</button>
+      <button class="btn" id="lockbtn">Lock</button>
+    </div>
+    <ul class="chapters" id="chapters"></ul>
+  </div>
+</div>
+
+<div id="bar">
+  <div class="wrap">
+    <button class="btn" id="back">&larr; Chapters</button>
+    <span class="ttl" id="bartitle"></span>
+    <button class="btn" id="torev" title="Review the words you added">Word Review</button>
+    <button class="btn" id="tzh" hidden>中</button>
+    <button class="btn" id="smaller">A&minus;</button>
+    <button class="btn" id="bigger">A+</button>
+  </div>
+  <div class="wrap modes" id="modes">
+    <button class="btn" data-mode="segment">Segment</button>
+    <button class="btn" data-mode="sentence">Sentence</button>
+    <button class="btn" data-mode="paragraph">Paragraph</button>
+    <button class="btn" data-mode="story">Chapter</button>
+  </div>
+</div>
+
+<div id="reader">
+  <div class="wrap">
+    <div class="chead">
+      <div class="n" id="cnum"></div>
+      <h2 id="ctitle"></h2>
+      <p class="zh" id="czh"></p>
+    </div>
+    <div id="step">
+      <p class="en" id="sten"></p>
+      <p class="zh" id="stzh"></p>
+      <div class="gloss" id="sgloss"></div>
+      <div class="ctl">
+        <button class="btn" id="sprev">&lsaquo; Previous</button>
+        <span class="pos"><input type="number" id="sjump" min="1"> / <span id="stot"></span></span>
+        <button class="btn" id="snext">Next &rsaquo;</button>
+      </div>
+      <div class="ctl">
+        <button class="btn" id="splay">&#9654; Play</button>
+        <button class="btn" id="stzhbtn">中文</button>
+        <label>Speed <input type="range" id="speed" min="0.5" max="1" step="0.05">
+          <span id="speedv"></span></label>
+      </div>
+    </div>
+    <div id="body"></div>
+    <div class="nav">
+      <button class="btn" id="prev">&larr; Previous</button>
+      <button class="btn" id="next">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<div id="sheet">
+  <div class="wrap">
+    <button class="btn x" id="close">&times;</button>
+    <p class="en" id="sen"></p>
+    <p class="zh" id="szh"></p>
+    <div class="row">
+      <button class="btn" id="play">&#9654; Play</button>
+      <button class="btn" id="szhbtn">中文</button>
+      <span class="ttl" id="audionote" style="color:var(--dim);font-size:.75rem"></span>
+    </div>
+    <div class="gloss" id="gloss"></div>
+  </div>
+</div>
+
+<div id="review">
+  <div class="wrap">
+    <div class="rtop">
+      <button class="btn" id="rback">&larr; Back</button>
+      <span id="rcount"></span>
+    </div>
+    <div id="rbody">
+      <div class="rcard">
+        <div class="rword" id="rfront"></div>
+        <div id="ranswer">
+          <div id="rword2"></div>
+          <div class="ripa" id="ripa"></div>
+          <div class="rzh" id="rzh"></div>
+        </div>
+        <div class="rrow">
+          <button class="btn" id="rplayw">&#9654; Word</button>
+          <button class="btn" id="rplay">&#9654; Sentence</button>
+          <button class="btn" id="rjump">Go to story &nearr;</button>
+        </div>
+        <div class="rex">
+          <p class="en" id="rexen"></p>
+          <p class="zh" id="rexzh"></p>
+          <div class="gloss" id="rgloss"></div>
+        </div>
+      </div>
+      <div id="ractions"></div>
+      <p style="color:var(--dim);font-size:.75rem;text-align:center;margin-top:12px">
+        Space: show answer &middot; 1&ndash;4: grade</p>
+    </div>
+    <div id="rdone">
+      <h2 id="rdonemsg"></h2>
+      <p id="rdonesub"></p>
+    </div>
+  </div>
+</div>
+
+<audio id="au" preload="none"></audio>
+
+<script>
+// ---------------------------------------------------------------------------
+// A whole reader in one file: no build step, no framework, no server beyond a
+// static one. It reads exactly the pack format the pipeline writes, so the same
+// JSON drops into the React app later without a conversion step.
+//
+//   cd public && python -m http.server 8000   ->   http://localhost:8000
+//
+// Four views, as in germanic-literature: Segment, Sentence and Paragraph step
+// through the chapter one unit at a time; Chapter is the continuous text.
+// Switching view keeps your place, anchored on a sentence id. Tapped words go
+// into Review, a spaced-repetition deck (germanic's SRSReview, in miniature).
+//
+// Published copies are SEALED (scripts/publish.py): every data file is
+// AES-GCM encrypted under a key derived from a password, and the page asks for
+// it. Run locally, there is no sealed.json and the files are read as they are.
+// ---------------------------------------------------------------------------
+const $ = s => document.querySelector(s);
+const MODES = ['segment', 'sentence', 'paragraph', 'story'];
+// Three books on one shelf. state.reg.chapters holds all of them in shelf
+// order; state.work is the book open now, state.idx the chapter's place within
+// that book, and a chapter is named everywhere by its code (pas01), which is
+// unique across the shelf.
+const state = {reg:null, dict:null, pack:null, packs:{}, idx:0, sent:null, showZh:false,
+               work:null, covers:{},
+               mode:'sentence', units:null, pos:0, anchor:null, rate:1};
+
+const LS = {
+  get: (k, d) => { try { return JSON.parse(localStorage.getItem('dancing.'+k)) ?? d; }
+                   catch (e) { return d; } },
+  set: (k, v) => { try { localStorage.setItem('dancing.'+k, JSON.stringify(v)); }
+                   catch (e) {} },
+};
+
+// Chapter titles arrive as "The Pas de Deux · Tombé (falling)"; the reader has
+// the book title everywhere already, so only the part after the dot is wanted.
+const shortTitle = t => t.includes(' · ') ? t.split(' · ').pop() : t;
+
+function screen(name) {
+  for (const s of ['lock', 'shelf', 'library', 'reader', 'review'])
+    $('#' + s).style.display = s === name ? 'block' : 'none';
+  $('#bar').style.display = name === 'reader' ? 'block' : 'none';
+}
+
+// ---------------------------------------------------------------------------
+// Data. getBytes('texts/pas01.json') is the only way anything is read: plain
+// fetch locally, fetch + decrypt when the site is sealed. File layout on a
+// sealed site: data/<path>.bin = 12-byte nonce | AES-GCM ciphertext+tag.
+// ---------------------------------------------------------------------------
+const vault = {key: null, meta: null, index: null};
+const b64 = {
+  enc: buf => { let s = ''; new Uint8Array(buf).forEach(c => s += String.fromCharCode(c)); return btoa(s); },
+  dec: s => Uint8Array.from(atob(s), c => c.charCodeAt(0)),
+};
+
+async function unseal(key, buf) {
+  const b = new Uint8Array(buf);
+  return crypto.subtle.decrypt({name: 'AES-GCM', iv: b.slice(0, 12)}, key, b.slice(12));
+}
+
+async function deriveKey(pw, meta) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw),
+                                             'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name: 'PBKDF2', salt: b64.dec(meta.salt), iterations: meta.iter, hash: 'SHA-256'},
+    base, {name: 'AES-GCM', length: 256}, true, ['decrypt']);
+}
+
+// A key is right if it opens the check blob; AES-GCM refuses anything else.
+const tryKey = key => unseal(key, b64.dec(vault.meta.check)).then(() => true, () => false);
+
+// The ?v= hash (data/index.json) lets the offline cache keep a file for good
+// and still see a republished one as new: see sw.js.
+const sealedUrl = path => 'data/' + path + '.bin'
+  + (vault.index && vault.index[path] ? '?v=' + vault.index[path] : '');
+
+async function getBytes(path) {
+  const r = await fetch(vault.key ? sealedUrl(path) : path);
+  if (!r.ok) throw new Error(path + ': ' + r.status);
+  const buf = await r.arrayBuffer();
+  return vault.key ? unseal(vault.key, buf) : buf;
+}
+const getJSON = async path => JSON.parse(new TextDecoder().decode(await getBytes(path)));
+const getBlobUrl = async (path, type) =>
+  URL.createObjectURL(new Blob([await getBytes(path)], {type}));
+
+// A published page carries <meta name="build">; if the server has a different
+// one, this copy is stale: reload (the reading position is saved).
+async function checkForUpdate() {
+  const mine = document.querySelector('meta[name=build]').content;
+  if (mine === 'dev') return;
+  try {
+    const r = await fetch('index.html', {cache: 'no-store'});
+    const m = r.ok && (await r.text()).match(/<meta name="build" content="([^"]+)">/);
+    if (m && m[1] !== mine) location.reload();
+  } catch (e) {}                       // offline: keep what we have
+}
+
+async function start() {
+  try {
+    const r = await fetch('sealed.json', {cache: 'no-store'});
+    vault.meta = r.ok ? await r.json() : null;
+  } catch (e) { vault.meta = null; }
+  if (!vault.meta) return boot();
+  try {
+    const r = await fetch('data/index.json', {cache: 'no-store'});
+    vault.index = r.ok ? await r.json() : null;
+  } catch (e) { vault.index = null; }
+  // Only the published site is cached for offline; a local copy is being
+  // edited and must never be served stale.
+  if ('serviceWorker' in navigator)
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  checkForUpdate();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
+
+  const saved = LS.get('key', null);
+  if (saved) {
+    try {
+      const key = await crypto.subtle.importKey('raw', b64.dec(saved), 'AES-GCM', true, ['decrypt']);
+      if (await tryKey(key)) { vault.key = key; return boot(); }
+    } catch (e) {}
+    LS.set('key', null);           // the password changed, or the key is damaged
+  }
+  screen('lock');
+  $('#pw').focus();
+}
+
+$('#lockf').onsubmit = async e => {
+  e.preventDefault();
+  const msg = $('#lockmsg');
+  msg.textContent = 'Opening…';
+  const key = await deriveKey($('#pw').value.trim(), vault.meta);
+  if (!(await tryKey(key))) { msg.textContent = 'That password is not right.'; return; }
+  vault.key = key;
+  if ($('#remember').checked) LS.set('key', b64.enc(await crypto.subtle.exportKey('raw', key)));
+  msg.textContent = '';
+  $('#pw').value = '';
+  boot().catch(fail);
+};
+
+$('#lockbtn').onclick = () => { LS.set('key', null); location.reload(); };
+
+async function boot() {
+  state.reg = await getJSON('texts/registry.json');
+  // The dictionary is a later pipeline stage; the reader must work without it.
+  try { state.dict = await getJSON('dict.json'); } catch (e) { state.dict = null; }
+
+  offline();
+
+  const shelf = $('#books');
+  shelf.textContent = '';
+  for (const w of state.reg.works) {
+    const b = document.createElement('button');
+    const img = document.createElement('img');
+    img.alt = w.title;
+    b.appendChild(img);
+    b.onclick = () => showBook(w.slug);
+    shelf.appendChild(b);
+    state.covers[w.slug] = getBlobUrl(w.cover, 'image/jpeg').catch(() => '');
+    state.covers[w.slug].then(u => img.src = u);
+  }
+
+  const size = LS.get('size', null);
+  if (size) document.documentElement.style.setProperty('--size', size + 'px');
+  state.showZh = false;
+  $('#tzh').classList.toggle('on', state.showZh);
+  state.rate = LS.get('rate', 1);
+  $('#speed').value = state.rate;
+  $('#speedv').textContent = state.rate.toFixed(2) + '×';
+  const m = LS.get('mode', 'sentence');
+  state.mode = MODES.includes(m) ? m : 'sentence';
+
+  screen('shelf');
+  updateDue();
+  const last = LS.get('last', null);
+  if (chapterOf(last)) open(last);
+}
+
+const workOf = code => state.reg.works.find(w => w.chapters.includes(code));
+const chapterOf = code => state.reg.chapters.find(c => c.id === code);
+
+// A book's cover screen, with its chapter list sliding up over the cover.
+function renderBook(slug) {
+  const work = state.reg.works.find(w => w.slug === slug);
+  if (!work || state.work === work) return;
+  state.work = work;
+  const lib = $('#library').style;
+  lib.setProperty('--rx', work.rev[0]);
+  lib.setProperty('--ry', work.rev[1]);
+  $('#cover').removeAttribute('src');
+  state.covers[slug].then(u => {
+    if (state.work !== work || !u) return;
+    const img = $('#cover');
+    img.onload = () => lib.setProperty('--ar', img.naturalHeight / img.naturalWidth);
+    img.src = u;
+  });
+  document.title = work.title;
+
+  const ul = $('#chapters');
+  ul.textContent = '';
+  work.chapters.forEach((code, i) => {
+    const c = chapterOf(code);
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span>`
+                + `<span class="t">${shortTitle(c.title)}</span>`
+                + `<span class="meta">${c.sents} sent.</span>`;
+    b.onclick = () => open(code);
+    li.appendChild(b);
+    ul.appendChild(li);
+  });
+}
+
+function showBook(slug) {
+  renderBook(slug);
+  screen('library');
+  window.scrollTo(0, 0);
+  updateDue();
+}
+
+$('#toshelf').onclick = () => { LS.set('last', null); screen('shelf'); window.scrollTo(0, 0); };
+
+async function getPack(code) {
+  if (!state.packs[code]) state.packs[code] = getJSON(`texts/${code}.json`)
+    .catch(e => { delete state.packs[code]; throw e; });
+  return state.packs[code];
+}
+
+// ---------------------------------------------------------------------------
+// Units. Every unit carries `parts` (what plays, in order), `sids` (the
+// sentence ids it covers) and `sentenceId` (where it anchors when you switch).
+// A sentence with no segments is its own single segment, as in germanic.
+// ---------------------------------------------------------------------------
+function buildUnits(pack) {
+  const segment = [], sentence = [], paragraph = [];
+  pack.paragraphs.forEach((p, pi) => {
+    const ss = p.sentences;
+    for (const s of ss) {
+      sentence.push({id: s.id, sentenceId: s.id, sids: [s.id], parts: [s],
+                     translation: s.translation});
+      const gs = s.segments && s.segments.length ? s.segments : [s];
+      for (const g of gs)
+        segment.push({id: g.id, sentenceId: s.id, sids: [s.id], parts: [g],
+                      translation: g.translation || (gs.length === 1 ? s.translation : null)});
+    }
+    if (ss.length) {
+      const zh = ss.filter(s => s.translation).map(s => s.translation).join('');
+      paragraph.push({id: 'para_' + pi, sentenceId: ss[0].id, sids: ss.map(s => s.id),
+                      parts: ss, translation: zh || null});
+    }
+  });
+  return {segment, sentence, paragraph};
+}
+
+const unitsNow = () => state.units[state.mode] || [];
+const firstSid = () => state.pack.paragraphs[0]?.sentences[0]?.id || null;
+const sidOf = id => id.replace(/g\d+$/, '');     // a segment id -> its sentence id
+
+function setAnchor(sid) {
+  if (!sid) return;
+  state.anchor = sid;
+  const pos = LS.get('pos', {});
+  pos[state.pack.id] = sid;
+  LS.set('pos', pos);
+}
+
+// Next and previous stay inside the book: the last chapter of The Pas de Deux
+// does not run on into The Winner.
+const neighbour = d => state.work && state.work.chapters[state.idx + d];
+
+async function open(code) {
+  const c = chapterOf(code);
+  if (!c) return;
+  stop();
+  renderBook(workOf(code).slug);
+  const i = state.work.chapters.indexOf(code);
+  state.idx = i;
+  state.pack = await getPack(c.id);
+  state.units = buildUnits(state.pack);
+  state.anchor = LS.get('pos', {})[state.pack.id] || firstSid();
+  LS.set('last', code);
+
+  $('#cnum').textContent = `Chapter ${String(i + 1).padStart(2, '0')}`;
+  $('#ctitle').textContent = shortTitle(state.pack.title);
+  $('#czh').textContent = state.pack.titleTranslation || '';
+  $('#czh').style.display = 'none';          // on demand: tap the title
+  screen('reader');
+  $('#prev').disabled = !neighbour(-1);
+  $('#next').disabled = !neighbour(1);
+  render();
+  closeSheet();
+  window.scrollTo(0, 0);
+  setMode(state.mode, true);
+}
+
+function setMode(mode, fresh) {
+  // Leaving the chapter view: the place is the sentence at the top of the screen.
+  if (!fresh && state.mode === 'story' && !state.sent) {
+    const bar = $('#bar').getBoundingClientRect().bottom;
+    const top = [...document.querySelectorAll('#body .sent')]
+      .find(e => e.getBoundingClientRect().bottom > bar + 4);
+    if (top) setAnchor(top.dataset.id);
+  }
+  stop();
+  closeSheet();
+  state.mode = mode;
+  LS.set('mode', mode);
+  document.querySelectorAll('#modes .btn').forEach(b =>
+    b.classList.toggle('on', b.dataset.mode === mode));
+
+  const story = mode === 'story';
+  $('#step').style.display = story ? 'none' : 'block';
+  $('#body').style.display = story ? 'block' : 'none';
+  if (story) {
+    const el = state.anchor && state.anchor !== firstSid()
+      && document.querySelector(`#body .sent[data-id="${state.anchor}"]`);
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - $('#bar').offsetHeight - 16;
+      window.scrollTo(0, y);
+    }
+    return;
+  }
+  const i = unitsNow().findIndex(u => u.sids.includes(state.anchor));
+  goTo(i < 0 ? 0 : i, false);
+}
+
+// ---------------------------------------------------------------------------
+// Chapter view
+// ---------------------------------------------------------------------------
+function render() {
+  const body = $('#body');
+  body.textContent = '';
+  for (const para of state.pack.paragraphs) {
+    const p = document.createElement('p');
+    for (const s of para.sentences) {
+      const span = document.createElement('span');
+      span.className = 'sent';
+      span.dataset.id = s.id;
+      // Words are their own spans so forced-alignment timings have something to
+      // highlight; the trailing space lives inside the span, as in the pack.
+      for (const w of s.words) {
+        const ws = document.createElement('span');
+        ws.className = 'w' + (isLearning(w.text) ? ' lrn' : '');
+        ws.textContent = w.text;
+        span.appendChild(ws);
+      }
+      span.onclick = () => select(s, span);
+      if (p.childNodes.length) p.appendChild(document.createTextNode(' '));
+      p.appendChild(span);
+    }
+    if (state.showZh) {
+      const zh = document.createElement('span');
+      zh.className = 'zhline';
+      const done = para.sentences.filter(s => s.translation);
+      if (done.length) zh.textContent = done.map(s => s.translation).join('');
+      else { zh.className += ' untranslated'; zh.textContent = 'Not translated yet.'; }
+      p.appendChild(zh);
+    }
+    body.appendChild(p);
+  }
+}
+
+// "will—until" is one token in the pack (the timings are per token) but two
+// words to her: each side of a dash gets its own tap target inside the span.
+function tappable(ws, text, gloss) {
+  const parts = text.split(/([—–…/]+)/);
+  if (parts.length === 1) { ws.textContent = text; ws.onclick = () => gloss(text); return; }
+  ws.textContent = '';
+  for (const part of parts) {
+    const sp = document.createElement('span');
+    sp.textContent = part;
+    if (!/^[—–…/]+$/.test(part) && (clean(part) || /\d/.test(part)))
+      sp.onclick = e => { e.stopPropagation(); gloss(part); };
+    ws.appendChild(sp);
+  }
+}
+
+// Words as tappable spans; returns the spans so playback can light them up.
+// Each word knows its sentence, so a tap can file the word with its context.
+function wordRow(el, parts, box) {
+  el.textContent = '';
+  const out = [];
+  for (const part of parts) {
+    if (out.length) el.appendChild(document.createTextNode(' '));
+    const sid = sidOf(part.id);
+    for (const w of part.words) {
+      const ws = document.createElement('span');
+      ws.className = 'w' + (isLearning(w.text) ? ' lrn' : '');
+      tappable(ws, w.text, piece => glossFor(piece, box, {code: state.pack.id, sid}, ws));
+      el.appendChild(ws);
+      out.push(ws);
+    }
+  }
+  return out;
+}
+
+function select(s, span) {
+  stop();
+  document.querySelectorAll('.sent.sel').forEach(e => e.classList.remove('sel'));
+  span.classList.add('sel');
+  setAnchor(s.id);
+  state.sent = {data: s, el: span, els: wordRow($('#sen'), [s], $('#gloss'))};
+
+  const zh = $('#szh');
+  showZh(zh, $('#szhbtn'), false);
+  if (s.translation) { zh.textContent = s.translation; zh.classList.remove('untranslated'); }
+  else { zh.textContent = 'Not translated yet — run scripts/translate.py.';
+         zh.classList.add('untranslated'); }
+
+  const src = s.src || s.audio;
+  $('#play').style.display = src ? '' : 'none';
+  $('#audionote').textContent = src ? '' : 'No narration yet — run scripts/narrate.py.';
+  $('#gloss').style.display = 'none';
+  $('#sheet').classList.add('open');
+}
+
+function closeSheet() {
+  $('#sheet').classList.remove('open');
+  document.querySelectorAll('.sent.sel').forEach(e => e.classList.remove('sel'));
+  if (state.sent) stop();
+  state.sent = null;
+}
+
+function playSheet() {
+  const s = state.sent;
+  if (!s) return;
+  s.el.classList.add('playing');
+  playParts([s.data], s.els, null, $('#audionote'));
+}
+
+// ---------------------------------------------------------------------------
+// Stepper views: one segment / sentence / paragraph at a time
+// ---------------------------------------------------------------------------
+function goTo(i, autoplay = true) {
+  const us = unitsNow();
+  if (!us.length) return;
+  i = Math.max(0, Math.min(us.length - 1, i));
+  stop();
+  state.pos = i;
+  const u = us[i];
+  setAnchor(u.sentenceId);
+
+  state.stepEls = wordRow($('#sten'), u.parts, $('#sgloss'));
+  const zh = $('#stzh');
+  showZh(zh, $('#stzhbtn'), false);
+  zh.textContent = u.translation || 'Not translated yet.';
+  zh.classList.toggle('untranslated', !u.translation);
+  $('#sgloss').style.display = 'none';
+  $('#sjump').value = i + 1;
+  $('#sjump').max = us.length;
+  $('#stot').textContent = us.length;
+  $('#sprev').disabled = i === 0;
+  $('#snext').disabled = i === us.length - 1;
+  $('#splay').disabled = !u.parts.some(p => p.src || p.audio);
+  if (autoplay) playUnit();
+}
+
+function playUnit() {
+  const u = unitsNow()[state.pos];
+  if (!u) return;
+  // In paragraph view the anchor follows the sentence actually being read.
+  playParts(u.parts, state.stepEls, k => {
+    if (state.mode === 'paragraph') setAnchor(u.parts[k].id);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Dictionary. Keys are bare lowercase words; what is clicked carries the
+// punctuation and spacing of the running text. A miss tries the obvious
+// inflections before giving up.
+// ---------------------------------------------------------------------------
+const clean = raw => raw.toLowerCase().normalize('NFC')
+  .replace(/[^\p{L}'’-]/gu, '').replace(/^[-'’]+|[-'’]+$/g, '');
+
+function lookup(key) {
+  const d = state.dict;
+  if (!d || !key) return null;
+  if (d[key]) return [key, d[key]];
+  const tries = [key.replace(/['’]s$/, ''),
+                 key.replace(/ies$/, 'y'), key.replace(/es$/, ''), key.replace(/s$/, ''),
+                 key.replace(/ied$/, 'y'), key.replace(/ed$/, ''), key.replace(/d$/, ''),
+                 key.replace(/ing$/, ''), key.replace(/ing$/, 'e'), key + 'g',
+                 key.replace(/(.)\1ing$/, '$1'), key.replace(/(.)\1ed$/, '$1')];
+  for (const k of tries) if (k !== key && d[k]) return [k, d[k]];
+  return null;
+}
+// The headword a token files under: "hunched" -> "hunched", "Guitars," -> "guitar".
+const headword = raw => { const k = clean(raw); const h = lookup(k); return h ? h[0] : k; };
+
+// Say a tapped word aloud with the phone's own English voice (free, offline).
+let enVoice = null;
+function pickVoice() {
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  enVoice = vs.find(v => v.lang === 'en-US' && v.localService)
+         || vs.find(v => /^en[-_]/.test(v.lang)) || null;
+}
+if (window.speechSynthesis) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function sayWord(word) {
+  if (!window.speechSynthesis || !word) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(word);
+  u.lang = 'en-US';
+  if (enVoice) u.voice = enVoice;
+  u.rate = 0.85;
+  speechSynthesis.speak(u);
+}
+
+function glossFor(raw, box, loc, el) {
+  const key = clean(raw);
+  if (!key) {
+    // Numbers aren't in the dictionary, but she should still hear them: "$160" -> "160 dollars".
+    const num = raw.trim().replace(/^[^\w$£€]+|[^\w%]+$/gu, '');
+    if (!/\d/.test(num)) { box.style.display = 'none'; return; }
+    sayWord(num);
+    box.style.display = 'block';
+    box.innerHTML = `<b>${num}</b>`;
+    return;
+  }
+  sayWord(key);
+  box.style.display = 'block';
+  const hit = lookup(key);
+  if (!hit) {
+    box.innerHTML = `<b>${key}</b> <span class="ipa">`
+      + (state.dict ? 'not in the dictionary yet' : 'dictionary not built yet — run scripts/build_dict.py')
+      + '</span>';
+    return;
+  }
+  const [k, e] = hit;
+  box.innerHTML = `<b>${k}</b><span class="ipa">${e.ipa ? '/' + e.ipa + '/' : ''}</span>`
+                + `<span class="zh">${e.zh || ''}</span><span class="gact"></span>`;
+  const act = box.querySelector('.gact');
+  const draw = () => {
+    const st = vocab.get(k).status;
+    act.innerHTML = st === 'learning'
+      ? '<span class="gnote">In Word Review ✓</span> <button class="btn">Remove</button>'
+      : '<button class="btn">Add to Word Review</button>';
+    act.querySelector('button').onclick = () => {
+      vocab.put(k, st === 'learning' ? {status: 'known'}
+                                     : {status: 'learning', loc, added: new Date().toISOString()});
+      markLearning();
+      draw();
+    };
+  };
+  draw();
+  markLearning();
+}
+
+// Re-mark every visible word after the deck changes.
+function markLearning() {
+  document.querySelectorAll('#body .w, #sten .w, #sen .w').forEach(e =>
+    e.classList.toggle('lrn', isLearning(e.textContent)));
+  updateDue();
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulary and Review. The deck lives in this browser (localStorage), keyed
+// by headword: {status: learning|known, loc: {code, sid}, ...scheduling}.
+// Scheduler: germanic's utils/anki.js - simplified SM-2 with learning steps.
+// ---------------------------------------------------------------------------
+const vocab = {
+  all: () => LS.get('vocab', {}),
+  get: k => vocab.all()[k] || {},
+  put: (k, patch) => { const v = vocab.all(); v[k] = {...v[k], ...patch}; LS.set('vocab', v); },
+};
+const isLearning = raw => { const k = headword(raw); return !!k && vocab.get(k).status === 'learning'; };
+
+const SRS = {NEW: [1, 10], RELEARN: [10], GRAD: 1, EASY: 4, MIN_EASE: 1.3, HARD: 1.2, BONUS: 1.3};
+
+function srsStep(card, grade) {
+  let ease = card.ease ?? 2.5, interval = card.interval ?? 0, reps = card.reps ?? 0,
+      lapses = card.lapses ?? 0, st = card.state ?? 'new', s = card.step ?? 0, mins;
+  if (st === 'new' || st === 'learning') {
+    const steps = SRS.NEW;
+    if (grade === 'again') { st = 'learning'; s = 0; mins = steps[0]; }
+    else if (grade === 'hard') {
+      st = 'learning';
+      const cur = steps[Math.min(s, steps.length - 1)];
+      mins = cur <= steps[0] ? Math.round((steps[0] + steps[1]) / 2) : cur;
+    } else if (grade === 'good') {
+      s += 1;
+      if (s >= steps.length) { st = 'review'; interval = SRS.GRAD; mins = SRS.GRAD * 1440; }
+      else { st = 'learning'; mins = steps[s]; }
+    } else { st = 'review'; interval = SRS.EASY; mins = SRS.EASY * 1440; }
+  } else if (st === 'relearning') {
+    if (grade === 'again') { s = 0; mins = SRS.RELEARN[0]; }
+    else if (grade === 'hard') mins = Math.round(SRS.RELEARN[0] * 1.5);
+    else if (grade === 'good') { st = 'review'; interval = Math.max(1, Math.round(interval)); mins = interval * 1440; }
+    else { st = 'review'; interval = Math.max(SRS.EASY, Math.round(interval) + SRS.EASY - 1); mins = interval * 1440; }
+  } else {
+    if (grade === 'again') {
+      lapses += 1; ease = Math.max(SRS.MIN_EASE, ease - 0.2);
+      st = 'relearning'; s = 0; interval = 1; mins = SRS.RELEARN[0];
+    } else {
+      // strictly increasing, so Hard < Good < Easy even at tiny intervals
+      const base = Math.max(1, interval);
+      const hard = Math.max(base + 1, Math.round(base * SRS.HARD));
+      const good = Math.max(hard + 1, Math.round(base * ease));
+      const easy = Math.max(good + 1, Math.round(base * ease * SRS.BONUS));
+      if (grade === 'hard') { ease = Math.max(SRS.MIN_EASE, ease - 0.15); interval = hard; }
+      else if (grade === 'good') interval = good;
+      else { ease += 0.15; interval = easy; }
+      mins = interval * 1440;
+    }
+    reps += 1;
+  }
+  return {mins, ease: Math.round(ease * 100) / 100, interval, state: st, step: s, reps, lapses};
+}
+
+function fmtMins(m) {
+  if (m < 60) return Math.max(1, Math.round(m)) + 'm';
+  if (m < 1440) return Math.round(m / 60) + 'h';
+  const d = Math.round(m / 1440);
+  return d < 30 ? d + 'd' : d < 365 ? Math.round(d / 30) + 'mo' : (d / 365).toFixed(1) + 'y';
+}
+
+const isDue = c => c.status === 'learning' && (!c.due || new Date(c.due) <= new Date());
+const dueWords = () => Object.entries(vocab.all()).filter(([, c]) => isDue(c)).map(([w]) => w);
+
+// Save for offline: quietly fetch every sealed file once, so the service worker
+// holds the whole book (text and audio) on the phone. Runs on its own on the
+// published site once the worker is running; the button stays hidden.
+async function offline() {
+  const btn = $('#offbtn');
+  if (!vault.index || !('serviceWorker' in navigator) || !window.caches) return;
+  const reg = await navigator.serviceWorker.ready;
+  const urls = Object.keys(vault.index).map(sealedUrl);
+  if (reg.active) reg.active.postMessage({keep: urls});
+  const c = await caches.open('dancing-data');
+  const have = (await Promise.all(urls.map(u => c.match(u)))).filter(Boolean).length;
+  if (have === urls.length) return;
+  (async () => {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    let n = 0;
+    for (const u of urls) {
+      btn.textContent = `Saving ${++n}/${urls.length}…`;
+      try { await fetch(u); } catch (e) { btn.textContent = 'Offline save stopped: no connection'; return; }
+    }
+    btn.textContent = 'Saved for offline ✓';
+  })();
+}
+
+function updateDue() {
+  const n = dueWords().length;
+  const total = Object.values(vocab.all()).filter(c => c.status === 'learning').length;
+  $('#revbtn').textContent = n ? `Word Review · ${n} due` : `Word Review${total ? ' · ' + total + ' words' : ''}`;
+  $('#torev').textContent = n ? `Word Review ${n}` : 'Word Review';
+}
+
+const GRADES = [['again', 'Forgot'], ['hard', 'Hard'], ['good', 'Good'], ['easy', 'Easy']];
+const rv = {queue: [], i: 0, shown: false, ex: null, from: 'library'};
+
+function openReview() {
+  stop();
+  closeSheet();
+  rv.from = $('#reader').style.display === 'block' ? 'reader' : 'library';
+  // English -> Chinese only: she sees the word, recalls the meaning.
+  rv.queue = dueWords().map(w => ({w, dir: 'en'}));
+  rv.i = 0;
+  screen('review');
+  window.scrollTo(0, 0);
+  showCard();
+}
+
+async function findExample(word, loc) {
+  const hit = w => headword(w.text) === word;
+  if (loc && loc.code) {
+    const pack = await getPack(loc.code).catch(() => null);
+    const s = pack && pack.paragraphs.flatMap(p => p.sentences).find(s => s.id === loc.sid);
+    if (s && s.words.some(hit)) return {code: loc.code, s};
+  }
+  for (const c of state.reg.chapters) {        // no place on file: first occurrence
+    const pack = await getPack(c.id).catch(() => null);
+    const s = pack && pack.paragraphs.flatMap(p => p.sentences).find(s => s.words.some(hit));
+    if (s) return {code: c.id, s};
+  }
+  return null;
+}
+
+async function showCard() {
+  stop();
+  const card = rv.queue[rv.i];
+  rv.shown = false;
+  rv.ex = null;
+  $('#rcount').textContent = card ? `${rv.queue.length - rv.i} left` : '';
+  $('#rbody').style.display = card ? 'block' : 'none';
+  $('#rdone').style.display = card ? 'none' : 'block';
+  if (!card) {
+    const total = Object.values(vocab.all()).filter(c => c.status === 'learning').length;
+    $('#rdonemsg').textContent = rv.queue.length ? 'Session complete ✨'
+      : total ? 'No words due — come back later.' : 'No words yet.';
+    $('#rdonesub').textContent = total ? `${total} words in Review.`
+      : 'Tap any word while reading: it goes into Review, and comes back here on a schedule.';
+    updateDue();
+    return;
+  }
+  const e = (state.dict && state.dict[card.w]) || {};
+  $('#rfront').textContent = card.dir === 'en' ? card.w : (e.zh || '…');
+  $('#rfront').className = 'rword' + (card.dir === 'zh' ? ' zh' : '');
+  $('#ranswer').style.display = 'none';
+  $('#rexen').textContent = '';
+  $('#rplay').style.display = 'none';
+  drawActions();
+
+  const ex = await findExample(card.w, vocab.get(card.w).loc);
+  if (rv.queue[rv.i] !== card) return;           // she moved on while it loaded
+  rv.ex = ex;
+  if (ex) {
+    rv.exEls = wordRow($('#rexen'), [ex.s], $('#rgloss'));
+    rv.exEls.forEach((el, i) => el.classList.toggle('hit', headword(ex.s.words[i].text) === card.w));
+    // wordRow filed taps under the open chapter; here they belong to the example's.
+    rv.exEls.forEach((el, i) => el.onclick = () =>
+      glossFor(ex.s.words[i].text, $('#rgloss'), {code: ex.code, sid: ex.s.id}, el));
+    $('#rexzh').textContent = ex.s.translation || '';
+    $('#rexzh').style.display = rv.shown ? '' : 'none';
+    $('#rexen').style.display = rv.shown || card.dir === 'en' ? '' : 'none';
+    $('#rplay').style.display = ex.s.src || ex.s.audio ? '' : 'none';
+  }
+  // English -> Chinese: hear it on the front. Chinese -> English: only after
+  // the reveal, or the audio gives the answer away.
+  if (card.dir === 'en') playWord();
+}
+
+function reveal() {
+  const card = rv.queue[rv.i];
+  if (!card || rv.shown) return;
+  rv.shown = true;
+  const e = (state.dict && state.dict[card.w]) || {};
+  $('#rword2').textContent = card.dir === 'zh' ? card.w : '';
+  $('#ripa').textContent = e.ipa ? '/' + e.ipa + '/' : '';
+  $('#rzh').textContent = card.dir === 'en' ? (e.zh || '') : '';
+  $('#rgloss').style.display = 'none';
+  $('#rexen').style.display = '';
+  $('#rexzh').style.display = '';
+  $('#ranswer').style.display = 'block';
+  drawActions();
+  if (card.dir === 'zh') playWord();
+}
+
+function drawActions() {
+  const box = $('#ractions');
+  box.textContent = '';
+  const card = rv.queue[rv.i];
+  if (!card) return;
+  if (!rv.shown) {
+    const b = document.createElement('button');
+    b.className = 'ract show';
+    b.textContent = 'Show answer';
+    b.onclick = reveal;
+    box.appendChild(b);
+    return;
+  }
+  const c = vocab.get(card.w);
+  GRADES.forEach(([g, label], n) => {
+    const b = document.createElement('button');
+    b.className = 'ract ' + g;
+    b.innerHTML = `${label}<span>${fmtMins(srsStep(c, g).mins)}</span>`;
+    b.title = `${label} (${n + 1})`;
+    b.onclick = () => grade(g);
+    box.appendChild(b);
+  });
+}
+
+function grade(g) {
+  const card = rv.queue[rv.i];
+  if (!card || !rv.shown) return;
+  const r = srsStep(vocab.get(card.w), g);
+  const due = new Date(Date.now() + r.mins * 60000);
+  vocab.put(card.w, {ease: r.ease, interval: r.interval, reps: r.reps, lapses: r.lapses,
+                     state: r.state, step: r.step, due: due.toISOString(),
+                     lastReviewed: new Date().toISOString()});
+  // Forgot puts the card back into this session; anything else waits its turn.
+  if (g === 'again') rv.queue.push(card);
+  rv.i += 1;
+  showCard();
+}
+
+// The word itself, cut out of the narration. Word spans inside a sentence are
+// estimates (see align.py), so the clip gets a little air either side.
+function playWord() {
+  const ex = rv.ex, card = rv.queue[rv.i];
+  if (!ex || !(ex.s.src || ex.s.audio)) return;
+  const i = ex.s.words.findIndex(w => headword(w.text) === card.w);
+  const w = ex.s.words[i];
+  if (!w || w.start == null) return;
+  playParts([{...ex.s, start: Math.max(0, w.start - 0.08), end: w.end + 0.12, words: [w]}],
+            [rv.exEls[i]]);
+}
+
+$('#rplayw').onclick = playWord;
+$('#rplay').onclick = () => rv.ex && playParts([rv.ex.s], rv.exEls);
+$('#rjump').onclick = () => {
+  const ex = rv.ex;
+  if (!ex) return;
+  const pos = LS.get('pos', {});
+  pos[ex.code] = ex.s.id;
+  LS.set('pos', pos);
+  open(ex.code);
+};
+$('#rback').onclick = () => {
+  stop();
+  if (rv.from === 'reader' && state.pack) { screen('reader'); render(); setMode(state.mode, true); }
+  else screen('library');
+  updateDue();
+};
+$('#revbtn').onclick = openReview;
+$('#torev').onclick = openReview;
+
+// ---------------------------------------------------------------------------
+// Audio. One mp3 per chapter; a unit plays exactly its own [start, end] and
+// stops. The file is loaded once as a blob: `python -m http.server` does not
+// answer Range requests, so a plain URL cannot seek and every play would start
+// at 0:00 - and a sealed file has to be decrypted whole anyway. A blob seeks
+// anywhere, whatever serves it.
+// ---------------------------------------------------------------------------
+const au = $('#au');
+const blobs = {};
+let raf = 0, clip = null, token = 0;
+
+function audioUrl(src) {
+  if (/^https?:/.test(src)) return Promise.resolve(src);
+  const path = 'audio/' + src.replace(/^\/?audio\//, '');
+  if (!blobs[path]) blobs[path] = getBlobUrl(path, 'audio/mpeg')
+    .catch(e => { delete blobs[path]; throw e; });
+  return blobs[path];
+}
+
+async function load(src) {
+  const url = await audioUrl(src);
+  if (au.src !== url) {
+    au.src = url;
+    await new Promise((ok, bad) => {
+      au.addEventListener('loadedmetadata', ok, {once: true});
+      au.addEventListener('error', bad, {once: true});
+    });
+  }
+}
+
+// parts: things with src/start/end/words, played in order.
+// els: one span per word across all parts, for the highlight.
+async function playParts(parts, els, onPart, note) {
+  stop();
+  parts = parts.filter(p => p.src || p.audio);
+  if (!parts.length) return;
+  const my = ++token;
+  const words = [];
+  parts.forEach(p => p.words.forEach(w => words.push({w, el: els[words.length]})));
+  clip = {parts, k: 0, words, onPart, els};
+  setPlayLabels(true);
+  try { await startPart(0, my); }
+  catch (e) {
+    if (my === token) { stop(); if (note) note.textContent = 'Could not load the narration.'; }
+  }
+}
+
+async function startPart(k, my) {
+  const p = clip.parts[k];
+  await load(p.src || p.audio);
+  if (my !== token || !clip) return;
+  clip.k = k;
+  au.defaultPlaybackRate = au.playbackRate = state.rate;
+  au.currentTime = p.start ?? 0;
+  if (clip.onPart) clip.onPart(k);
+  await au.play();
+  tick();
+}
+
+function tick() {
+  cancelAnimationFrame(raf);
+  if (!clip) return;
+  const t = au.currentTime;
+  const p = clip.parts[clip.k];
+  if (p.end != null && t >= p.end) {
+    if (clip.k + 1 < clip.parts.length) {
+      const n = clip.parts[clip.k + 1];
+      // Consecutive sentences sit back to back in the chapter file: carry on
+      // without a seek unless there is a real gap.
+      if ((n.src || n.audio) === (p.src || p.audio) && Math.abs((n.start ?? t) - t) < 0.35) {
+        clip.k++;
+        if (clip.onPart) clip.onPart(clip.k);
+      } else { startPart(clip.k + 1, token).catch(stop); return; }
+    } else { stop(); return; }
+  }
+  for (const {w, el} of clip.words)
+    if (el) el.classList.toggle('on', w.start != null && t >= w.start && t < w.end);
+  raf = requestAnimationFrame(tick);
+}
+
+function stop() {
+  cancelAnimationFrame(raf);
+  token++;
+  if (clip) clip.els.forEach(e => e && e.classList.remove('on'));
+  clip = null;
+  au.pause();
+  document.querySelectorAll('.playing').forEach(e => e.classList.remove('playing'));
+  setPlayLabels(false);
+}
+
+// Pause keeps the place in the unit; play again resumes rather than restarts.
+function togglePlay(start) {
+  if (clip && !au.paused) { au.pause(); cancelAnimationFrame(raf); setPlayLabels(false); return; }
+  if (clip && au.paused) { au.play(); setPlayLabels(true); tick(); return; }
+  start();
+}
+
+function setPlayLabels(on) {
+  const t = on ? '&#10074;&#10074; Pause' : '&#9654; Play';
+  $('#play').innerHTML = t;
+  $('#splay').innerHTML = t;
+}
+
+au.onended = stop;
+
+// ---------------------------------------------------------------------------
+// Chrome
+// ---------------------------------------------------------------------------
+$('#play').onclick = () => togglePlay(playSheet);
+$('#splay').onclick = () => togglePlay(playUnit);
+$('#close').onclick = closeSheet;
+$('#ctitle').onclick = () => { const z = $('#czh'); z.style.display = z.style.display === 'none' ? '' : 'none'; };
+$('#sprev').onclick = () => goTo(state.pos - 1);
+$('#snext').onclick = () => goTo(state.pos + 1);
+$('#sjump').onchange = e => goTo(parseInt(e.target.value, 10) - 1);
+// Chinese on demand: hidden until she asks, and hidden again on the next unit,
+// so she reads the English first every time.
+function showZh(zh, btn, on) {
+  zh.style.display = on ? '' : 'none';
+  btn.classList.toggle('on', on);
+}
+const toggleZh = (zh, btn) => showZh(zh, btn, zh.style.display === 'none');
+$('#stzhbtn').onclick = () => toggleZh($('#stzh'), $('#stzhbtn'));
+$('#szhbtn').onclick = () => toggleZh($('#szh'), $('#szhbtn'));
+$('#speed').oninput = e => {
+  state.rate = parseFloat(e.target.value);
+  au.defaultPlaybackRate = au.playbackRate = state.rate;
+  $('#speedv').textContent = state.rate.toFixed(2) + '×';
+  LS.set('rate', state.rate);
+};
+document.querySelectorAll('#modes .btn').forEach(b =>
+  b.onclick = () => { if (b.dataset.mode !== state.mode) setMode(b.dataset.mode); });
+
+// Swipe between units, as on a phone; swipe up on a review card to reveal it.
+function swipe(el, fn) {
+  let t0 = null;
+  el.addEventListener('touchstart', e => {
+    const t = e.changedTouches[0]; t0 = {x: t.clientX, y: t.clientY};
+  }, {passive: true});
+  el.addEventListener('touchend', e => {
+    if (!t0) return;
+    const t = e.changedTouches[0];
+    fn(t.clientX - t0.x, t.clientY - t0.y);
+    t0 = null;
+  }, {passive: true});
+}
+swipe($('#step'), (dx, dy) => {
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) goTo(state.pos + (dx < 0 ? 1 : -1));
+});
+swipe($('#rbody'), (dx, dy) => { if (dy < -50 && Math.abs(dy) > Math.abs(dx) * 1.5) reveal(); });
+
+$('#back').onclick = () => {
+  closeSheet();
+  stop();
+  screen('library');
+  updateDue();
+};
+$('#prev').onclick = () => open(neighbour(-1));
+$('#next').onclick = () => open(neighbour(1));
+$('#tzh').onclick = () => {
+  state.showZh = !state.showZh;
+  LS.set('showZh', state.showZh);
+  $('#tzh').classList.toggle('on', state.showZh);
+  render();
+};
+function resize(d) {
+  const cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--size'));
+  const next = Math.min(30, Math.max(15, cur + d));
+  document.documentElement.style.setProperty('--size', next + 'px');
+  LS.set('size', next);
+}
+$('#bigger').onclick = () => resize(1);
+$('#smaller').onclick = () => resize(-1);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (e.key === 'Escape') closeSheet();
+  if ($('#review').style.display === 'block') {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!rv.shown) reveal(); }
+    const n = '1234'.indexOf(e.key);
+    if (n >= 0) grade(GRADES[n][0]);
+    return;
+  }
+  if ($('#reader').style.display !== 'block') return;
+  const step = state.mode !== 'story';
+  if (e.key === 'c' || e.key === 'C') {
+    if (step) toggleZh($('#stzh'), $('#stzhbtn'));
+    else if (state.sent) toggleZh($('#szh'), $('#szhbtn'));
+  } else if (e.key === ' ') {
+    e.preventDefault();
+    if (step) togglePlay(playUnit);
+    else if (state.sent) togglePlay(playSheet);
+  } else if (e.key === 'ArrowRight') {
+    if (step) goTo(state.pos + 1);
+    else open(neighbour(1));
+  } else if (e.key === 'ArrowLeft') {
+    if (step) goTo(state.pos - 1);
+    else open(neighbour(-1));
+  }
+});
+
+function fail(e) {
+  document.body.innerHTML = '<div class="wrap"><p style="padding:40px 0">'
+    + 'Could not load the texts: ' + e
+    + '<br><br>Serve this folder rather than opening the file directly:<br>'
+    + '<code>cd public &amp;&amp; python -m http.server 8000</code></p></div>';
+}
+start().catch(fail);
+</script>
+</body>
+</html>

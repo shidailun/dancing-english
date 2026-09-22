@@ -1,0 +1,199 @@
+# -*- coding: utf-8 -*-
+"""Publish the reader to GitHub Pages, SEALED: https://shidailun.github.io/dancing-english/
+
+The page is public; the book is not. Every data file - chapter packs, the
+dictionary, the cover, the narration - is encrypted with AES-256-GCM under a key
+derived from a password (PBKDF2-SHA256, 600,000 rounds), and only the ciphertext
+goes online. Without the password the site is a lock screen and a folder of
+noise. The reader (public/index.html) asks for the password once and can keep
+the derived key on her device.
+
+    python scripts/publish.py                  # encrypt + deploy
+    python scripts/publish.py --dry-run        # build build_data/site/, deploy nothing
+    python scripts/publish.py --show-password  # print the password and exit
+    python scripts/publish.py --new-password   # rotate: she will need the new one
+
+The password and salt live in build_data/site_secret.json, which is gitignored
+and never leaves this machine. The salt is kept across publishes, so a device
+that remembered the key keeps working after you update the audio or the text.
+
+Updating the audio: replace public/audio/pas01.mp3 (or rerun narrate.py),
+run align.py and segment.py for that chapter, then run this. Each publish
+commits on top of the live gh-pages and pushes only the files whose content
+changed, so a text fix uploads a few hundred KB, not the whole audiobook.
+"""
+import base64, hashlib, json, os, secrets, shutil, subprocess, sys, io, tempfile
+from pathlib import Path
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+ROOT = Path(__file__).resolve().parents[1]
+PUB = ROOT / 'public'
+SITE = ROOT / 'build_data' / 'site'
+SECRET = ROOT / 'build_data' / 'site_secret.json'
+REPO = 'shidailun/dancing-english'
+URL = 'https://shidailun.github.io/dancing-english/'
+ITER = 600_000
+ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'     # no 0/o, 1/l/i to misread
+
+
+def new_password():
+    return '-'.join(''.join(secrets.choice(ALPHABET) for _ in range(4)) for _ in range(4))
+
+
+def secret(rotate=False):
+    s = json.loads(SECRET.read_text(encoding='utf-8')) if SECRET.exists() else {}
+    if rotate or not s.get('password'):
+        s = {'password': new_password(), 'salt': base64.b64encode(secrets.token_bytes(16)).decode()}
+        SECRET.parent.mkdir(parents=True, exist_ok=True)
+        SECRET.write_text(json.dumps(s, indent=1), encoding='utf-8')
+    return s
+
+
+def derive(password, salt):
+    return PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt,
+                      iterations=ITER).derive(password.encode('utf-8'))
+
+
+def seal(aes, data):
+    nonce = secrets.token_bytes(12)
+    return nonce + aes.encrypt(nonce, data, None)
+
+
+def files():
+    """Everything the reader reads through getBytes(), by published path."""
+    out = [PUB / 'texts' / 'registry.json', PUB / 'dict.json']
+    out += sorted(PUB.glob('cover-*.jpg'))
+    out += sorted((PUB / 'texts').glob('[a-z][a-z][a-z][0-9][0-9].json'))
+    out += sorted((PUB / 'audio').glob('*.mp3'))
+    return [f for f in out if f.exists()]
+
+
+def build(s):
+    aes = AESGCM(derive(s['password'], base64.b64decode(s['salt'])))
+    if SITE.exists():
+        shutil.rmtree(SITE)
+    SITE.mkdir(parents=True)
+    shutil.copyfile(PUB / 'index.html', SITE / 'index.html')
+    # The installable app: manifest, offline worker, home-screen icons. Only
+    # the icons are images: the book's cover, padded square, shown unsealed.
+    for name in ('manifest.webmanifest', 'sw.js'):
+        shutil.copyfile(PUB / name, SITE / name)
+    shutil.copytree(PUB / 'icons', SITE / 'icons')
+    (SITE / '.nojekyll').write_text('', encoding='utf-8')
+    (SITE / 'robots.txt').write_text('User-agent: *\nDisallow: /\n', encoding='utf-8')
+    (SITE / 'sealed.json').write_text(json.dumps({
+        'salt': s['salt'], 'iter': ITER,
+        'check': base64.b64encode(seal(aes, b'dancing-ok')).decode(),
+    }), encoding='utf-8')
+    total, index = 0, {}
+    for f in files():
+        rel = f.relative_to(PUB).as_posix()
+        dest = SITE / 'data' / (rel + '.bin')
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        data = f.read_bytes()
+        dest.write_bytes(seal(aes, data))
+        total += dest.stat().st_size
+        # A version tag per file: sw.js caches data/<path>.bin?v=<tag> for good,
+        # so the tag must change exactly when the content (or password) does.
+        index[rel] = hashlib.sha256(s['salt'].encode() + data).hexdigest()[:12]
+    (SITE / 'data' / 'index.json').write_text(json.dumps(index), encoding='utf-8')
+    # Stamp the page with this build, so an installed copy can tell it is stale.
+    page = (PUB / 'index.html').read_text(encoding='utf-8')
+    stamp = hashlib.sha256((page + json.dumps(index, sort_keys=True)).encode()).hexdigest()[:12]
+    (SITE / 'index.html').write_text(
+        page.replace('<meta name="build" content="dev">', f'<meta name="build" content="{stamp}">'),
+        encoding='utf-8')
+    n = len(files())
+    print(f'sealed {n} files, {total / 1e6:.1f} MB -> {SITE.relative_to(ROOT)}')
+
+
+def git(*args, cwd):
+    subprocess.run(['git', *args], cwd=cwd, check=True)
+
+
+def deploy():
+    remote = subprocess.run(['git', 'remote', 'get-url', 'origin'], cwd=ROOT,
+                            capture_output=True, text=True, check=True).stdout.strip()
+    with tempfile.TemporaryDirectory() as tmp:
+        # Incremental: start from the live gh-pages and replace only the files
+        # whose content changed. Sealing is randomised, so without this every
+        # publish re-uploads all ~200 MB of audio, which this link cannot push
+        # (HTTP 408). A file's version tag in data/index.json is a hash of its
+        # plaintext, so an unchanged tag means the live ciphertext is still good.
+        got = subprocess.run(['git', 'clone', '-q', '--depth', '1', '-b', 'gh-pages', remote, tmp])
+        live = {}
+        if got.returncode == 0 and not (Path(tmp) / 'data' / 'index.json').exists():
+            pass                                 # an old publish: keep its history, replace every file
+        elif got.returncode == 0:
+            live = json.loads((Path(tmp) / 'data' / 'index.json').read_text(encoding='utf-8'))
+            if json.loads((Path(tmp) / 'sealed.json').read_text(encoding='utf-8'))['salt'] !=                     json.loads((SITE / 'sealed.json').read_text(encoding='utf-8'))['salt']:
+                live = {}                        # new password: everything changes
+        else:
+            shutil.rmtree(tmp, ignore_errors=True); Path(tmp).mkdir(exist_ok=True)
+            git('init', '-q', '-b', 'gh-pages', cwd=tmp)
+        new = json.loads((SITE / 'data' / 'index.json').read_text(encoding='utf-8'))
+        want = {p.relative_to(SITE).as_posix() for p in SITE.rglob('*') if p.is_file()}
+        for p in list(Path(tmp).rglob('*')):
+            rel = p.relative_to(tmp).as_posix()
+            if p.is_file() and '.git' not in p.parts and rel not in want:
+                p.unlink()
+        changed = []
+        for rel in sorted(want):
+            src = rel[len('data/'):-len('.bin')] if rel.startswith('data/') and rel.endswith('.bin') else None
+            dest = Path(tmp) / rel
+            if src and live.get(src) == new.get(src) and dest.exists():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(SITE / rel, dest)
+            changed.append(dest)
+        print(f'{len(changed)} files changed, {sum(p.stat().st_size for p in changed) / 1e6:.1f} MB to push')
+        batches, cur, size = [], [], 0
+        for p in changed:
+            cur.append(p); size += p.stat().st_size
+            if size > float(os.environ.get('PUBLISH_BATCH', 10e6)):
+                batches.append(cur); cur, size = [], 0
+        if cur:
+            batches.append(cur)
+        for k, batch in enumerate(batches, 1):
+            git('add', '-A', '--', *[str(p.relative_to(tmp)) for p in batch], cwd=tmp)
+            if k == len(batches):
+                git('add', '-A', cwd=tmp)        # deletions ride with the last batch
+            git('-c', 'user.name=dancing-english', '-c', 'user.email=dancing-english@users.noreply.github.com',
+                'commit', '-q', '-m', f'Publish sealed reader ({k}/{len(batches)})', cwd=tmp)
+            for attempt in range(3):             # a slow link drops the odd push
+                r = subprocess.run(['git', '-c', 'http.postBuffer=524288000', '-c', 'http.version=HTTP/1.1',
+                                    'push', '-q', remote, 'HEAD:gh-pages'], cwd=tmp)
+                if r.returncode == 0:
+                    break
+            else:
+                sys.exit(f'push {k}/{len(batches)} failed three times')
+            print(f'  pushed {k}/{len(batches)}')
+    print('pushed gh-pages')
+
+    got = subprocess.run(['gh', 'api', f'repos/{REPO}/pages'], capture_output=True, text=True)
+    if got.returncode != 0:
+        subprocess.run(['gh', 'api', '-X', 'POST', f'repos/{REPO}/pages',
+                        '-f', 'source[branch]=gh-pages', '-f', 'source[path]=/'],
+                       check=True, capture_output=True)
+        print('enabled GitHub Pages from gh-pages')
+    print(f'live in a minute or two at {URL}')
+
+
+def main():
+    argv = sys.argv[1:]
+    s = secret(rotate='--new-password' in argv)
+    if '--show-password' in argv:
+        print(s['password'])
+        return
+    build(s)
+    if '--dry-run' not in argv:
+        deploy()
+    if '--new-password' in argv:
+        print(f'NEW password: {s["password"]}  (the old one no longer works)')
+
+
+if __name__ == '__main__':
+    main()
