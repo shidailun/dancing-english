@@ -23,7 +23,7 @@ BOOKS = [
      'sections': ['entree', 'adagio', 'male-variation', 'female-variation',
                   'coda', 'curtain-call']},
     {'slug': 'win', 'title': 'The Winner', 'sub': 'A Ballroom Dance Novel',
-     'zh': '赢家', 'year': 2016, 'chapters': 55, 'sections': [], 'rev': [0.5, 0.82],
+     'zh': '赢家', 'year': 2016, 'chapters': 55, 'sections': [], 'rev': [0.5, 0.90],
      'voice': 'en-US-AvaNeural'},
     {'slug': 'pie', 'title': 'The Piece', 'sub': 'A Contemporary Ballet Novel',
      'zh': '舞作', 'year': 2020, 'chapters': 32, 'sections': [], 'rev': [0.21, 0.5],
@@ -31,8 +31,11 @@ BOOKS = [
 ]
 # 'rev' is where the Word Review button sits on each cover, as fractions of
 # the cover's width and height: a patch of plain ground on each (between the
-# subtitle and the tiara; between "novel" and the author; the black left of the dancer), as
-# souls-reader put its button just below the guitar.
+# subtitle and the tiara; on the floorboards under the flourish; the black left
+# of the dancer), as souls-reader put its button just below the guitar.
+# The Winner's was .82, which put the button across "a ballroom dance novel";
+# "word review a bit lower on the winner", 23 Sep, and .90 is the dark band
+# between the flourish and her name.
 # 'voice' is each book's narrator: three women, one per book, so the shelf
 # does not sound like one reader doing all three. All en-US because all three
 # novels are American. Aria and Michelle are the two voices Microsoft tags for

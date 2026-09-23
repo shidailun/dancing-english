@@ -35,12 +35,30 @@
   .wrap{max-width:46rem;margin:0 auto;padding:0 16px}
 
   /* ---------- shelf: the three covers, nothing else ---------- */
+  /* They used to sit three across whatever the screen. On a phone that made
+     each cover a third of 390px -- about 110px wide, 165 tall -- floating in
+     the middle of an 800px screen: "the dancing one opening screen wastes most
+     of the space", 23 Sep, and it wasted about four fifths of it.
+     Three 2:3 covers fill more of a screen stacked than in a row whenever the
+     screen is taller than 2:3, which is every phone held upright; a row wins on
+     anything wider. So the direction follows the shape of the screen and the
+     covers are sized to fill it either way: each button takes an equal share of
+     the long side and the cover grows to fill it. No max-width on this screen
+     either -- .wrap's 46rem is right for a page of text and wrong for a
+     picture. */
   #shelf{display:none}
-  .shelf{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end;
-    min-height:100vh;padding:calc(env(safe-area-inset-top) + 24px) 0 calc(env(safe-area-inset-bottom) + 24px);
-    align-content:center}
-  .shelf button{background:none;border:0;padding:0;cursor:pointer}
-  .shelf img{display:block;width:100%;border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+  .shelf{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;height:100dvh;
+    padding:calc(env(safe-area-inset-top) + 16px) 0 calc(env(safe-area-inset-bottom) + 16px)}
+  .shelf button{background:none;border:0;padding:0;cursor:pointer;
+    flex:1 1 0;min-height:0;min-width:0;width:100%;
+    display:flex;align-items:center;justify-content:center}
+  .shelf img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;
+    border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+  @media (min-aspect-ratio: 2/3){
+    .shelf{flex-direction:row}
+    .shelf button{width:auto;height:100%}
+  }
 
   /* ---------- library ---------- */
   #library{display:none}
@@ -936,6 +954,25 @@ function fmtMins(m) {
 const isDue = c => c.status === 'learning' && (!c.due || new Date(c.due) <= new Date());
 const dueWords = () => Object.entries(vocab.all()).filter(([, c]) => isDue(c)).map(([w]) => w);
 
+// The deck. It used to be dueWords() and nothing else, so Word Review held only
+// the words she had tapped in the text and marked, and on a fresh install it
+// held none: the button opened on an empty screen. "it should include all words
+// in the app", 23 Sep, and the app's words are the dictionary build_dict.py
+// wrote out of the three books -- 13,902 of them, every word in all three.
+//
+// Due first, so anything she is already learning keeps its place in the queue
+// and its schedule; the rest behind it in the dictionary's own order, which is
+// the order the words first appear in the text. That puts the commonest words
+// at the front, which is the order a reader meets them and the order she can
+// grade fastest: Easy on a word she knows costs one tap and it is gone for four
+// days. Sorting them by rarity instead would open the deck on the hardest words
+// in the books, which is how a deck gets abandoned.
+const reviewDeck = () => {
+  const due = dueWords();
+  const seen = new Set(due);
+  return due.concat(Object.keys(state.dict || {}).filter(w => !seen.has(w)));
+};
+
 // Offline. The shelf is 537 MiB of mp3, so nothing downloads on its own: this
 // used to fetch all 233 files at boot, which meant a student opening the app on
 // the bus began a half-gigabyte download she never asked for, behind a hidden
@@ -1013,7 +1050,9 @@ async function saveBook(work, paths, bytes) {
 
 function updateDue() {
   const n = dueWords().length;
-  const total = Object.values(vocab.all()).filter(c => c.status === 'learning').length;
+  // The count with nothing due is the whole deck now, not the words she has
+  // marked: it is what the button will actually open.
+  const total = reviewDeck().length;
   $('#revbtn').textContent = n ? `Word Review · ${n} due` : `Word Review${total ? ' · ' + total + ' words' : ''}`;
   $('#torev').textContent = n ? `Word Review ${n}` : 'Word Review';
 }
@@ -1026,7 +1065,7 @@ function openReview() {
   closeSheet();
   rv.from = $('#reader').style.display === 'block' ? 'reader' : 'library';
   // English -> Chinese only: she sees the word, recalls the meaning.
-  rv.queue = dueWords().map(w => ({w, dir: 'en'}));
+  rv.queue = reviewDeck().map(w => ({w, dir: 'en'}));
   rv.i = 0;
   screen('review');
   window.scrollTo(0, 0);
@@ -1137,7 +1176,12 @@ function grade(g) {
   if (!card || !rv.shown) return;
   const r = srsStep(vocab.get(card.w), g);
   const due = new Date(Date.now() + r.mins * 60000);
-  vocab.put(card.w, {ease: r.ease, interval: r.interval, reps: r.reps, lapses: r.lapses,
+  // status:'learning' is what isDue() looks for, and a word reached through the
+  // whole dictionary rather than by tapping it in the text has never been given
+  // one. Without this line those words took a grade, stored a due date and were
+  // never seen again.
+  vocab.put(card.w, {status: 'learning',
+                     ease: r.ease, interval: r.interval, reps: r.reps, lapses: r.lapses,
                      state: r.state, step: r.step, due: due.toISOString(),
                      lastReviewed: new Date().toISOString()});
   if (T.code === 'review') T.words++;
