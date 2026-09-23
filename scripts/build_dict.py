@@ -48,7 +48,7 @@ MIN_LEN = 1                     # 'a' and 'I' are words too
 # he, that and mark; hyphenated compounds, which lookup() now resolves to their
 # head; and the handful of one-off jokes the books spell with hyphens all
 # through, which no dictionary should carry.
-HAND = {
+CONTRACTIONS = {
     "didn't":    {'ipa': 'ˈdɪdənt',  'zh': 'did not 的缩写：没有、不曾'},
     "i'd":       {'ipa': 'aɪd',      'zh': 'I would / I had 的缩写：我会、我曾'},
     "he'd":      {'ipa': 'hid',      'zh': 'he would / he had 的缩写：他会、他曾'},
@@ -109,6 +109,94 @@ HAND = {
     # use for what it means on a programme.
     "entr'acte": {'ipa': 'ˈɑntɹˌækt', 'zh': '幕间休息、幕间表演'},
 }
+
+# The hyphenated compounds whose head is a lie. lookup() falls back from a
+# compound to its head, which carries most of them - t-shirt to shirt,
+# twenty-two to two, self-hatred to hatred - and those are left alone. These are
+# the ones where the head sends her somewhere else entirely: good-looking landed
+# on 看, middle-class on 舞蹈课, pro-am on 是, chocolate-chip on 薯片,
+# no-nonsense on 胡说. Every one was read off the resolution the reader actually
+# produces, not guessed at, and the ballroom terms among them (pro-am, on-deck,
+# heel-toe, un-partnered, oom-pah) are the vocabulary of The Winner.
+COMPOUNDS = {
+    'good-looking':       {'ipa': 'ˈɡʊdˈlʊkɪŋ',        'zh': '好看的、英俊的'},
+    'on-deck':            {'ipa': 'ɑnˈdɛk',            'zh': '待上场的、准备下一个上场的'},
+    'button-down':        {'ipa': 'ˈbʌtənˌdaʊn',       'zh': '纽扣领的（衬衫）'},
+    'button-downs':       {'ipa': 'ˈbʌtənˌdaʊnz',      'zh': '纽扣领衬衫（复数）'},
+    'up-and-down':        {'ipa': 'ˌʌpənˈdaʊn',        'zh': '上下打量的、起起伏伏的'},
+    'face-to-face':       {'ipa': 'ˌfeɪstəˈfeɪs',      'zh': '面对面'},
+    'three-time':         {'ipa': 'ˈθɹiˌtaɪm',         'zh': '三届的、三次夺冠的'},
+    'warm-up':            {'ipa': 'ˈwɔɹmˌʌp',          'zh': '热身、暖身练习'},
+    'pick-up':            {'ipa': 'ˈpɪkˌʌp',           'zh': '临时凑成的；搭讪'},
+    'back-to-back':       {'ipa': 'ˌbæktəˈbæk',        'zh': '连续两次的、背靠背'},
+    'boarded-up':         {'ipa': 'ˈbɔɹdɪdˌʌp',        'zh': '用木板封住的'},
+    'happily-ever-after': {'ipa': 'ˈhæpəliɛvɚˈæftɚ',   'zh': '从此过上幸福生活（的结局）'},
+    'pro-am':             {'ipa': 'ˈpɹoʊˌæm',          'zh': '职业与业余搭档的（比赛）'},
+    'long-term':          {'ipa': 'ˈlɔŋˈtɜɹm',         'zh': '长期的'},
+    'low-cut':            {'ipa': 'ˈloʊˌkʌt',          'zh': '低胸的、领口低的'},
+    'low-level':          {'ipa': 'ˈloʊˌlɛvəl',        'zh': '低级的、低层的'},
+    'mail-order':         {'ipa': 'ˈmeɪlˌɔɹdɚ',        'zh': '邮购的'},
+    'low-functioning':    {'ipa': 'ˈloʊˈfʌŋkʃənɪŋ',    'zh': '低功能的、生活能力差的'},
+    'never-ending':       {'ipa': 'ˈnɛvɚˈɛndɪŋ',       'zh': '永无止境的'},
+    'side-by-side':       {'ipa': 'ˌsaɪdbaɪˈsaɪd',     'zh': '并排的、并肩'},
+    'much-needed':        {'ipa': 'ˈmʌtʃˈnidɪd',       'zh': '急需的'},
+    'washed-up':          {'ipa': 'ˈwɑʃtˌʌp',          'zh': '过气的、不中用了'},
+    'upside-down':        {'ipa': 'ˌʌpsaɪdˈdaʊn',      'zh': '颠倒的、倒过来'},
+    'devil-may-care':     {'ipa': 'ˈdɛvəlmeɪˈkɛɹ',     'zh': '满不在乎的'},
+    'off-key':            {'ipa': 'ˌɔfˈki',            'zh': '走调的、跑调'},
+    'hollowed-out':       {'ipa': 'ˈhɑloʊdˌaʊt',       'zh': '被掏空的、空心的'},
+    'drawn-out':          {'ipa': 'ˈdɹɔnˌaʊt',         'zh': '拖长的、冗长的'},
+    'one-off':            {'ipa': 'ˈwʌnˌɔf',           'zh': '一次性的、仅此一次'},
+    'made-up':            {'ipa': 'ˈmeɪdˌʌp',          'zh': '编造的；化了妆的'},
+    'put-upon':           {'ipa': 'ˈpʊtəˌpɑn',         'zh': '受委屈的、被利用的'},
+    'make-up':            {'ipa': 'ˈmeɪkˌʌp',          'zh': '化妆、化妆品'},
+    'thumbs-up':          {'ipa': 'ˈθʌmzˌʌp',          'zh': '竖大拇指、赞成'},
+    'marked-up':          {'ipa': 'ˈmɑɹktˌʌp',         'zh': '加价的；批注过的'},
+    'no-standing':        {'ipa': 'ˈnoʊˈstændɪŋ',      'zh': '禁止停车的（路段）'},
+    'go-to':              {'ipa': 'ˈɡoʊˌtu',           'zh': '首选的、最信赖的'},
+    'high-end':           {'ipa': 'ˈhaɪˈɛnd',          'zh': '高端的'},
+    'sphinx-like':        {'ipa': 'ˈsfɪŋksˌlaɪk',      'zh': '斯芬克斯般的、高深莫测的'},
+    'rat-a-tat':          {'ipa': 'ˌɹætəˈtæt',         'zh': '哒哒哒（敲击声）'},
+    'oom-pah':            {'ipa': 'ˈumˌpɑ',            'zh': '蓬嚓嚓（铜管乐的节拍）'},
+    'heel-toe':           {'ipa': 'ˈhilˌtoʊ',          'zh': '跟趾（步法）'},
+    'six-couple':         {'ipa': 'ˈsɪksˌkʌpəl',       'zh': '六对舞伴的'},
+    'un-partnered':       {'ipa': 'ˌʌnˈpɑɹtnɚd',       'zh': '没有舞伴的'},
+    'off-the-floor':      {'ipa': 'ˌɔfðəˈflɔɹ',        'zh': '不在舞池上的、场下的'},
+    'one-round':          {'ipa': 'ˈwʌnˌɹaʊnd',        'zh': '一轮的'},
+    'one-way':            {'ipa': 'ˈwʌnˌweɪ',          'zh': '单向的、单程的'},
+    'full-house':         {'ipa': 'ˈfʊlˈhaʊs',         'zh': '满座、客满'},
+    'flesh-and-bone':     {'ipa': 'ˌflɛʃənˈboʊn',      'zh': '有血有肉的、活生生的'},
+    'black-and-white':    {'ipa': 'ˌblækənˈwaɪt',      'zh': '黑白的'},
+    'real-life':          {'ipa': 'ˈɹiəlˌlaɪf',        'zh': '真实的、现实中的'},
+    'leather-bound':      {'ipa': 'ˈlɛðɚˌbaʊnd',       'zh': '皮面装订的'},
+    'self-consciously':   {'ipa': 'ˌsɛlfˈkɑnʃəsli',    'zh': '不自在地、难为情地'},
+    'wide-eyed':          {'ipa': 'ˈwaɪdˈaɪd',         'zh': '睁大眼睛的、天真的'},
+    'twinkly-eyed':       {'ipa': 'ˈtwɪŋkliˈaɪd',      'zh': '眼睛闪亮的'},
+    'pint-sized':         {'ipa': 'ˈpaɪntˌsaɪzd',      'zh': '小个子的、袖珍的'},
+    'middle-class':       {'ipa': 'ˈmɪdəlˈklæs',       'zh': '中产阶级的'},
+    'fourth-floor':       {'ipa': 'ˈfɔɹθˈflɔɹ',        'zh': '四楼的'},
+    'no-nonsense':        {'ipa': 'ˈnoʊˈnɑnsəns',      'zh': '严肃务实的、不拐弯抹角的'},
+    'single-minded':      {'ipa': 'ˈsɪŋɡəlˈmaɪndɪd',   'zh': '一心一意的、执着的'},
+    'peanut-butter':      {'ipa': 'ˈpinʌtˌbʌtɚ',       'zh': '花生酱'},
+    'chocolate-chip':     {'ipa': 'ˈtʃɑklətˌtʃɪp',     'zh': '巧克力豆（饼干）'},
+    'well-trod':          {'ipa': 'ˈwɛlˈtɹɑd',         'zh': '常走的、老生常谈的'},
+    'bone-deep':          {'ipa': 'ˈboʊnˈdip',         'zh': '深入骨髓的'},
+    'african-american':   {'ipa': 'ˈæfɹɪkənəˈmɛɹɪkən', 'zh': '非裔美国人（的）'},
+    'government-funded':  {'ipa': 'ˈɡʌvɚnməntˈfʌndɪd', 'zh': '政府资助的'},
+    'after-school':       {'ipa': 'ˈæftɚˌskul',        'zh': '课后的、课外的'},
+    'mid-life':           {'ipa': 'ˈmɪdˌlaɪf',         'zh': '中年的'},
+    'front-page':         {'ipa': 'ˈfɹʌntˈpeɪdʒ',      'zh': '头版的'},
+    'high-five':          {'ipa': 'ˈhaɪˈfaɪv',         'zh': '击掌'},
+    'high-backed':        {'ipa': 'ˈhaɪˈbækt',         'zh': '高靠背的'},
+    'straight-backed':    {'ipa': 'ˈstɹeɪtˈbækt',      'zh': '直背的、挺直腰背的'},
+    'three-piece':        {'ipa': 'ˈθɹiˈpis',          'zh': '三件套的'},
+    'full-time':          {'ipa': 'ˈfʊlˈtaɪm',         'zh': '全职的'},
+    'stop-and-frisk':     {'ipa': 'ˌstɑpənˈfɹɪsk',     'zh': '拦截搜身（警方做法）'},
+    'red-hot':            {'ipa': 'ˈɹɛdˈhɑt',          'zh': '火热的、炙手可热的'},
+    'freckle-faced':      {'ipa': 'ˈfɹɛkəlˌfeɪst',     'zh': '满脸雀斑的'},
+}
+
+HAND = {**CONTRACTIONS, **COMPOUNDS}
 
 SYSTEM = (
     # This prompt arrived from germanic-literature still describing that
