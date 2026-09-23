@@ -37,17 +37,24 @@ CHUNK = 50                      # words per request; 100 truncated replies
 MIN_LEN = 1                     # 'a' and 'I' are words too
 
 SYSTEM = (
+    # This prompt arrived from germanic-literature still describing that
+    # shelf's horror novel, heavy metal and Traditional Chinese, none of which
+    # is true here: these are Erin Bomboy's three dance novels, and all 13,770
+    # glosses already in dict.json are Simplified. It was steering 'set',
+    # 'turn', 'lift' and 'company' to the wrong sense for a ballet book.
     "You are building a learner dictionary for a Hong Kong university student "
-    "reading an American horror novel in English.\n"
+    "reading an American dance novel in English.\n"
     "For each word give:\n"
     "- ipa: General American IPA, no enclosing slashes (e.g. kjʊɹiˈɑsəti)\n"
-    "- zh: a short Traditional Chinese gloss in Hong Kong usage, 1-3 senses "
+    "- zh: a short Simplified Chinese gloss, 1-3 senses "
     "separated by 、, no example sentences, no part-of-speech labels.\n"
-    "Gloss the sense the novel is likely using: this is a book about heavy "
-    "metal, touring bands and the American road, so 'set' is more likely the "
-    "musical sense than the mathematical one.\n"
-    "If a word is a proper name, give its ipa and put the person, band or place "
-    "in zh (e.g. 樂隊名、人名).\n"
+    "Gloss the sense the novel is likely using: these are books about classical "
+    "ballet, ballroom competition and a choreographer's company, so 'turn', "
+    "'lift', 'company' and 'piece' are more likely the dance senses.\n"
+    "A contraction is a headword like any other: gloss didn't, I'd and he'd as "
+    "themselves, showing what they stand for.\n"
+    "If a word is a proper name, give its ipa and put the person, ballet or "
+    "place in zh (e.g. 芭蕾舞剧名、人名).\n"
     "Output STRICT JSON only: {word: {\"ipa\": ..., \"zh\": ...}, ...}. "
     "No commentary, no markdown fences."
 )
@@ -67,14 +74,29 @@ def _anthropic_key():
 client = anthropic.Anthropic(api_key=_anthropic_key())
 
 
+WORD = re.compile(r"[^\W\d_](?:[^\W\d_]|['-])*")
+
+
 def wordlist(chapter=None):
     """Every word the book uses, commonest first - so a --limit run glosses the
-    words the reader will actually meet first rather than an alphabetical slice."""
+    words the reader will actually meet first rather than an alphabetical slice.
+
+    The pattern used to be [^\\W\\d_][^\\W\\d_'’-]*, whose second class is
+    negated: it excluded the apostrophe and the hyphen instead of allowing them,
+    so "didn't" entered the list as "didn" and no contraction was ever glossed.
+    dict.json held 13,770 words and not one with an apostrophe, while the books
+    say didn't 634 times, I'd 582 and he'd 475 - every one of them a tap that
+    answered "not in the dictionary yet".
+
+    Curly apostrophes are folded to straight ones here and in the reader's
+    clean(), so one entry serves both spellings: the books use both, 634 didn’t
+    against 80 didn't.
+    """
     c = Counter()
     for f in sorted(SRC.glob(f'{chapter}.txt' if chapter else '*.txt')):
-        c.update(w.lower() for w in
-                 re.findall(r"[^\W\d_][^\W\d_'’-]*", f.read_text(encoding='utf-8')))
-    return [w for w, _ in c.most_common() if len(w) >= MIN_LEN]
+        text = f.read_text(encoding='utf-8').replace('’', "'")
+        c.update(w.lower().strip("'-") for w in WORD.findall(text))
+    return [w for w, _ in c.most_common() if w and len(w) >= MIN_LEN]
 
 
 def load():

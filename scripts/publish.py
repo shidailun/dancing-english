@@ -65,7 +65,12 @@ def build():
             sys.exit(f'{rel} is {src.stat().st_size / 2**20:.1f} MiB: over the 25 MiB asset limit')
         (SITE / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, SITE / rel)
-        index[rel] = hashlib.sha256(src.read_bytes()).hexdigest()[:12]
+        # [hash, bytes]. The size is here so the reader can tell a student what
+        # a book costs before she taps Save, and can add a book up without 114
+        # HEAD requests: the shelf is 537 MiB of mp3 and a phone should never
+        # be surprised by it.
+        index[rel] = [hashlib.sha256(src.read_bytes()).hexdigest()[:12],
+                      src.stat().st_size]
     for rel in SHELL:
         shutil.copyfile(PUB / rel, SITE / rel)
     shutil.copytree(PUB / 'icons', SITE / 'icons')

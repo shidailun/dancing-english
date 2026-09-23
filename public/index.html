@@ -390,6 +390,7 @@ function screen(name) {
   for (const s of ['shelf', 'library', 'reader', 'review'])
     $('#' + s).style.display = s === name ? 'block' : 'none';
   $('#bar').style.display = name === 'reader' ? 'block' : 'none';
+  track(name);
 }
 
 // ---------------------------------------------------------------------------
@@ -400,7 +401,8 @@ function screen(name) {
 // URL. Locally there is no files.json and the plain path is fetched.
 // ---------------------------------------------------------------------------
 const files = {index: null};
-const fileUrl = path => path + (files.index && files.index[path] ? '?v=' + files.index[path] : '');
+const fileUrl = path => path + (files.index && files.index[path] ? '?v=' + files.index[path][0] : '');
+const fileSize = path => (files.index && files.index[path] ? files.index[path][1] : 0);
 
 async function getBytes(path) {
   const r = await fetch(fileUrl(path));
@@ -446,7 +448,7 @@ async function boot() {
   // The dictionary is a later pipeline stage; the reader must work without it.
   try { state.dict = await getJSON('dict.json'); } catch (e) { state.dict = null; }
 
-  offline();
+  pruneCache();
 
   const shelf = $('#books');
   shelf.textContent = '';
@@ -496,6 +498,7 @@ function renderBook(slug) {
     img.src = u;
   });
   document.title = work.title;
+  showSave(work);
 
   const ul = $('#chapters');
   ul.textContent = '';
@@ -770,8 +773,10 @@ function playUnit() {
 // punctuation and spacing of the running text. A miss tries the obvious
 // inflections before giving up.
 // ---------------------------------------------------------------------------
+// Curly apostrophes fold to straight ones, as in build_dict.py's wordlist, so
+// didn’t and didn't are one headword rather than two misses.
 const clean = raw => raw.toLowerCase().normalize('NFC')
-  .replace(/[^\p{L}'’-]/gu, '').replace(/^[-'’]+|[-'’]+$/g, '');
+  .replace(/[^\p{L}'’-]/gu, '').replace(/’/g, "'").replace(/^[-']+|[-']+$/g, '');
 
 function lookup(key) {
   const d = state.dict;
@@ -917,27 +922,79 @@ function fmtMins(m) {
 const isDue = c => c.status === 'learning' && (!c.due || new Date(c.due) <= new Date());
 const dueWords = () => Object.entries(vocab.all()).filter(([, c]) => isDue(c)).map(([w]) => w);
 
-// Save for offline: quietly fetch every data file once, so the service worker
-// holds the whole shelf (text and audio) on the phone. Runs on its own on the
-// published site once the worker is running; the button stays hidden.
-async function offline() {
-  const btn = $('#offbtn');
+// Offline. The shelf is 537 MiB of mp3, so nothing downloads on its own: this
+// used to fetch all 233 files at boot, which meant a student opening the app on
+// the bus began a half-gigabyte download she never asked for, behind a hidden
+// button so she could not see it or stop it. On an iPhone it did not even
+// finish - Safari's quota rejected it partway, and the catch below reported
+// that as "no connection".
+//
+// Reading a chapter caches it by itself: every data URL carries ?v=<hash> and
+// the service worker serves those cache-first, so what she has read is offline
+// already, at no extra bytes. Save is for a book she wants before she loses
+// signal, and it says what it costs first.
+const MB = n => (n / 2 ** 20).toFixed(0) + ' MB';
+
+// Superseded files (a re-cut chapter, a new mp3) are dropped on every start;
+// this is cheap and unrelated to saving.
+async function pruneCache() {
   if (!files.index || !('serviceWorker' in navigator) || !window.caches) return;
   const reg = await navigator.serviceWorker.ready;
-  const urls = Object.keys(files.index).map(fileUrl);
-  if (reg.active) reg.active.postMessage({keep: urls});
+  if (reg.active) reg.active.postMessage({keep: Object.keys(files.index).map(fileUrl)});
+}
+
+// The files one book needs: its chapters' text and audio, and its cover.
+const bookFiles = work => Object.keys(files.index || {}).filter(p =>
+  work.chapters.some(c => p.endsWith(`/${c}.json`) || p.endsWith(`/${c}.mp3`))
+  || p.endsWith(work.cover));
+
+async function cachedCount(paths) {
+  if (!window.caches) return 0;
   const c = await caches.open('dancing-data');
-  const have = (await Promise.all(urls.map(u => c.match(u)))).filter(Boolean).length;
-  if (have === urls.length) return;
-  (async () => {
-    if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-    let n = 0;
-    for (const u of urls) {
-      btn.textContent = `Saving ${++n}/${urls.length}…`;
-      try { await fetch(u); } catch (e) { btn.textContent = 'Offline save stopped: no connection'; return; }
+  const hits = await Promise.all(paths.map(p => c.match(fileUrl(p))));
+  return hits.filter(Boolean).length;
+}
+
+async function showSave(work) {
+  const btn = $('#offbtn');
+  btn.parentElement.hidden = !files.index || !('serviceWorker' in navigator) || !window.caches;
+  if (btn.parentElement.hidden) return;
+  const paths = bookFiles(work);
+  const bytes = paths.reduce((n, p) => n + fileSize(p), 0);
+  const have = await cachedCount(paths);
+  btn.disabled = false;
+  btn.textContent = have === paths.length
+    ? 'Saved for offline ✓' : `Save this book · ${MB(bytes)}`;
+  btn.onclick = () => saveBook(work, paths, bytes);
+}
+
+async function saveBook(work, paths, bytes) {
+  const btn = $('#offbtn');
+  btn.disabled = true;
+  // Ask before starting rather than dying at file 90 of 114: iOS gives a site
+  // far less room than a desktop, and a part-saved book is worse than none,
+  // because it looks saved until she is underground.
+  if (navigator.storage && navigator.storage.estimate) {
+    const {quota = 0, usage = 0} = await navigator.storage.estimate();
+    if (quota && quota - usage < bytes) {
+      btn.textContent = `Not enough room on this phone (${MB(quota - usage)} free)`;
+      return;
     }
-    btn.textContent = 'Saved for offline ✓';
-  })();
+    if (navigator.storage.persist) navigator.storage.persist();
+  }
+  let n = 0;
+  for (const p of paths) {
+    btn.textContent = `Saving ${++n}/${paths.length}…`;
+    try {
+      const r = await fetch(fileUrl(p));
+      if (!r.ok) throw new Error(r.status);
+    } catch (e) {
+      btn.textContent = 'Stopped — tap to carry on';
+      btn.disabled = false;
+      return;
+    }
+  }
+  btn.textContent = 'Saved for offline ✓';
 }
 
 function updateDue() {
@@ -1069,6 +1126,7 @@ function grade(g) {
   vocab.put(card.w, {ease: r.ease, interval: r.interval, reps: r.reps, lapses: r.lapses,
                      state: r.state, step: r.step, due: due.toISOString(),
                      lastReviewed: new Date().toISOString()});
+  if (T.code === 'review') T.words++;
   // Forgot puts the card back into this session; anything else waits its turn.
   if (g === 'again') rv.queue.push(card);
   rv.i += 1;
@@ -1211,6 +1269,65 @@ function setPlayLabels(on) {
 }
 
 au.onended = stop;
+
+// ---------------------------------------------------------------------------
+// Reading time. The gate (worker/index.js, POST /api/beat) adds each beat to
+// this student's unit_time row for the chapter, fr:<app>:<chapter code>,
+// course 'fr', which TRA503's Free reading mark sums. The same code as the
+// channel readers' (brownlee-reader), so all fourteen apps on 503's shelf
+// report alike. A second counts only while the page is on screen AND the
+// narration is playing, or there was a tap, key or scroll in the last 90 s:
+// reading a line without playing it is reading, and a phone left face-up on
+// the contents is not. One beat a minute, and one more when the page is hidden
+// or closed (sendBeacon survives the page going away; the cookie goes with it,
+// same origin). A visit's first beat says open:true. Nothing of this is shown
+// to the student.
+//
+// What is timed follows screen(): the reader is its chapter, Word Review is
+// the lesson "review" (the gate files it as fr:<app>:review), the contents and
+// the shelf are not timed. Review beats also carry `words`, the cards graded
+// since the last beat: "time and words reviewed". Each grade is one, so a card
+// forgotten and seen again counts twice. Words are sent, never added to the
+// seconds.
+// ---------------------------------------------------------------------------
+const T = {code: null, secs: 0, open: false, words: 0};
+let lastInput = 0;
+const playing = () => !au.paused;
+for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart', 'scroll'])
+  addEventListener(ev, () => { lastInput = Date.now(); }, {passive: true, capture: true});
+setInterval(() => {
+  if (!T.code || document.visibilityState !== 'visible') return;
+  if (playing() || Date.now() - lastInput < 90000) T.secs++;
+}, 1000);
+setInterval(() => sendBeat(false), 60000);
+function sendBeat(leaving) {
+  if (!T.code || (!T.secs && !T.open && !T.words)) return;
+  const secs = Math.min(120, T.secs), words = Math.min(120, T.words), code = T.code;
+  const beat = {lesson: code, secs};
+  if (T.open) beat.open = true;
+  if (words) beat.words = words;
+  const body = JSON.stringify(beat);
+  T.secs -= secs; T.words -= words; T.open = false;
+  if (leaving && navigator.sendBeacon &&
+      navigator.sendBeacon('api/beat', new Blob([body], {type: 'application/json'}))) return;
+  fetch('api/beat', {method: 'POST', body, keepalive: true, credentials: 'same-origin',
+                     headers: {'Content-Type': 'application/json'}})
+    .then(r => { if (r.status === 429 && T.code === code) { T.secs += secs; T.words += words; } })   // try again next minute
+    .catch(() => {});
+}
+function beginVisit(code) {
+  if (T.code === code) return;
+  endVisit();
+  Object.assign(T, {code, secs: 0, open: true, words: 0});
+}
+function endVisit() { sendBeat(true); T.code = null; T.secs = 0; T.open = false; T.words = 0; }
+function track(name) {
+  if (name === 'reader' && state.pack) beginVisit(state.pack.id);
+  else if (name === 'review') beginVisit('review');
+  else endVisit();
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendBeat(true); });
+addEventListener('pagehide', () => sendBeat(true));
 
 // ---------------------------------------------------------------------------
 // Chrome
