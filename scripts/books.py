@@ -23,7 +23,7 @@ BOOKS = [
      'sections': ['entree', 'adagio', 'male-variation', 'female-variation',
                   'coda', 'curtain-call']},
     {'slug': 'win', 'title': 'The Winner', 'sub': 'A Ballroom Dance Novel',
-     'zh': '赢家', 'year': 2016, 'chapters': 55, 'sections': [], 'rev': [0.5, 0.872],
+     'zh': '赢家', 'year': 2016, 'chapters': 55, 'sections': [], 'rev': [0.5, 0.82],
      'voice': 'en-US-AvaNeural'},
     {'slug': 'pie', 'title': 'The Piece', 'sub': 'A Contemporary Ballet Novel',
      'zh': '舞作', 'year': 2020, 'chapters': 32, 'sections': [], 'rev': [0.21, 0.5],

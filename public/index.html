@@ -76,8 +76,13 @@
   .brand svg{width:26px;height:26px;fill:var(--hot)}
   .brand span{letter-spacing:.22em;text-transform:uppercase;font-size:.7rem;color:var(--dim)}
 
+  /* One column on every book, on the phone and on the desk. It was
+     auto-fill/minmax(15rem,1fr), which made two columns from 480px up, so the
+     list changed shape between his phone and a laptop. Still a grid, not a
+     plain list, because the 1px gap over the --line background is what draws
+     the hairline between rows. */
   .chapters{list-style:none;margin:8px 0 60px;padding:0;
-    display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1px;
+    display:grid;grid-template-columns:1fr;gap:1px;
     background:var(--line);border:1px solid var(--line)}
   .chapters li{background:var(--panel)}
   .chapters button{
