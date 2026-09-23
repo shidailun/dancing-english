@@ -1,10 +1,21 @@
-// The sealed site, served by Cloudflare at dancing-english.shidailun.com.
-// Assets only, no worker code: every file is ciphertext or the lock screen,
-// so there is nothing for a server to decide. publish.py builds build_data/site
-// and runs `npx wrangler deploy`; wrangler uploads only files whose hash changed.
+// The reader, served by Cloudflare at dancing-english.shidailun.com.
+// publish.py builds build_data/site and runs `npx wrangler deploy`; wrangler
+// uploads only files whose hash changed.
+//
+// worker/index.js is the reader gate (_tools/reader-gate/gate.js, copied): the
+// page and its shell load for anyone, every text and sound file only for a
+// student number + Lingnan email that D1 finds on the 503 or 506 roll.
+// run_worker_first makes the gate see every request, assets included; without
+// it Cloudflare would serve a matching file before the Worker was asked.
+// The D1 binding is only ever read. "remote" matters only to `wrangler dev`:
+// a local D1 would be empty and let nobody in, so dev reads the real roll.
 {
   "name": "dancing-english",
+  "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "build_data/site" },
+  "assets": { "directory": "build_data/site", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "lingnan", "database_id": "8055aca3-d40f-4ab9-86be-503c549bbde3", "remote": true }
+  ],
   "routes": [{ "pattern": "dancing-english.shidailun.com", "custom_domain": true }]
 }
