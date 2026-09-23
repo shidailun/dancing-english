@@ -184,11 +184,19 @@ def narrate(code, engine, voice, force):
     parts = []
     for i, text in enumerate(chunks):
         part = cache / f'{i:03d}.mp3'
+        # A part far shorter than its text is a truncated download, not a fast
+        # reader: edge can drop mid-stream without raising, and a killed run
+        # leaves half a file. Speech runs ~14 chars/s; anything under 25 is cut.
+        if part.exists() and duration(part) < len(text) / 25:
+            part.unlink()
         if not part.exists() or part.stat().st_size == 0:
             print(f'  {code} chunk {i + 1}/{len(chunks)}  {len(text)} chars  ({engine})')
             ENGINES[engine](text, voice, part,
                             prev=chunks[i - 1] if i else '',
                             nxt=chunks[i + 1] if i + 1 < len(chunks) else '')
+            if duration(part) < len(text) / 25:
+                part.unlink()
+                sys.exit(f'{code}: chunk {i + 1} came back truncated; rerun to retry')
         parts.append(part)
 
     dest = AUDIO / f'{code}.mp3'
