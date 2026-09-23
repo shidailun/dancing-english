@@ -36,6 +36,80 @@ MODEL = 'claude-sonnet-5'
 CHUNK = 50                      # words per request; 100 truncated replies
 MIN_LEN = 1                     # 'a' and 'I' are words too
 
+# Written out here rather than asked of the model. Contractions are a closed
+# class: there are sixty of them in the three novels and no more are coming, and
+# what each one stands for is a fact, not a judgement call. They are also 5,138
+# of the 6,193 taps that answered "not in the dictionary yet" - 83% of every
+# miss on the shelf - so they are the entries worth not waiting on an API for.
+# Merged on every run, before anything is sent anywhere, so this half works with
+# no key and no credit.
+#
+# Not here: possessives (he's, that's, Mark's), which lookup() already strips to
+# he, that and mark; hyphenated compounds, which lookup() now resolves to their
+# head; and the handful of one-off jokes the books spell with hyphens all
+# through, which no dictionary should carry.
+HAND = {
+    "didn't":    {'ipa': 'ˈdɪdənt',  'zh': 'did not 的缩写：没有、不曾'},
+    "i'd":       {'ipa': 'aɪd',      'zh': 'I would / I had 的缩写：我会、我曾'},
+    "he'd":      {'ipa': 'hid',      'zh': 'he would / he had 的缩写：他会、他曾'},
+    "i'm":       {'ipa': 'aɪm',      'zh': 'I am 的缩写：我是'},
+    "couldn't":  {'ipa': 'ˈkʊdənt',  'zh': 'could not 的缩写：不能、不会'},
+    "wasn't":    {'ipa': 'ˈwʌzənt',  'zh': 'was not 的缩写：不是、没有'},
+    "she'd":     {'ipa': 'ʃid',      'zh': 'she would / she had 的缩写：她会、她曾'},
+    "don't":     {'ipa': 'doʊnt',    'zh': 'do not 的缩写：不、不要'},
+    "hadn't":    {'ipa': 'ˈhædənt',  'zh': 'had not 的缩写：不曾、没有'},
+    "you're":    {'ipa': 'jʊɹ',      'zh': 'you are 的缩写：你是、你们是'},
+    "wouldn't":  {'ipa': 'ˈwʊdənt',  'zh': 'would not 的缩写：不会、不愿'},
+    "i've":      {'ipa': 'aɪv',      'zh': 'I have 的缩写：我已经'},
+    "we'd":      {'ipa': 'wid',      'zh': 'we would / we had 的缩写：我们会、我们曾'},
+    "can't":     {'ipa': 'kænt',     'zh': 'cannot 的缩写：不能、不会'},
+    "they'd":    {'ipa': 'ðeɪd',     'zh': 'they would / they had 的缩写：他们会、他们曾'},
+    "it'd":      {'ipa': 'ˈɪtəd',    'zh': 'it would / it had 的缩写：它会、它曾'},
+    "i'll":      {'ipa': 'aɪl',      'zh': 'I will 的缩写：我将、我会'},
+    "we're":     {'ipa': 'wɪɹ',      'zh': 'we are 的缩写：我们是'},
+    "you've":    {'ipa': 'juv',      'zh': 'you have 的缩写：你已经'},
+    "who'd":     {'ipa': 'hud',      'zh': 'who would / who had 的缩写：谁会、谁曾'},
+    "weren't":   {'ipa': 'wɜɹnt',    'zh': 'were not 的缩写：不是、没有'},
+    "doesn't":   {'ipa': 'ˈdʌzənt',  'zh': 'does not 的缩写：不、不是'},
+    "won't":     {'ipa': 'woʊnt',    'zh': 'will not 的缩写：不会、不愿'},
+    "they're":   {'ipa': 'ðɛɹ',      'zh': 'they are 的缩写：他们是'},
+    "haven't":   {'ipa': 'ˈhævənt',  'zh': 'have not 的缩写：还没有'},
+    "you'll":    {'ipa': 'jul',      'zh': 'you will 的缩写：你将、你会'},
+    "isn't":     {'ipa': 'ˈɪzənt',   'zh': 'is not 的缩写：不是'},
+    "you'd":     {'ipa': 'jud',      'zh': 'you would / you had 的缩写：你会、你曾'},
+    "we'll":     {'ipa': 'wil',      'zh': 'we will 的缩写：我们将、我们会'},
+    "there'd":   {'ipa': 'ðɛɹd',     'zh': 'there would / there had 的缩写：将会有、曾经有'},
+    "aren't":    {'ipa': 'ɑɹnt',     'zh': 'are not 的缩写：不是'},
+    "we've":     {'ipa': 'wiv',      'zh': 'we have 的缩写：我们已经'},
+    "how'd":     {'ipa': 'haʊd',     'zh': 'how did / how would 的缩写：怎么会、怎样'},
+    "shouldn't": {'ipa': 'ˈʃʊdənt',  'zh': 'should not 的缩写：不应该'},
+    "hasn't":    {'ipa': 'ˈhæzənt',  'zh': 'has not 的缩写：还没有'},
+    "it'll":     {'ipa': 'ˈɪtəl',    'zh': 'it will 的缩写：它将、它会'},
+    "they'll":   {'ipa': 'ðeɪl',     'zh': 'they will 的缩写：他们将、他们会'},
+    "y'know":    {'ipa': 'jəˈnoʊ',   'zh': 'you know 的口语缩写：你知道、（口头禅）'},
+    "he'll":     {'ipa': 'hil',      'zh': 'he will 的缩写：他将、他会'},
+    "would've":  {'ipa': 'ˈwʊdəv',   'zh': 'would have 的缩写：本来会'},
+    "that'll":   {'ipa': 'ˈðætəl',   'zh': 'that will 的缩写：那将、那会'},
+    "o'clock":   {'ipa': 'əˈklɑk',   'zh': '点钟'},
+    "must've":   {'ipa': 'ˈmʌstəv',  'zh': 'must have 的缩写：一定已经'},
+    "why'd":     {'ipa': 'waɪd',     'zh': 'why did / why would 的缩写：为什么'},
+    "they've":   {'ipa': 'ðeɪv',     'zh': 'they have 的缩写：他们已经'},
+    "should've": {'ipa': 'ˈʃʊdəv',   'zh': 'should have 的缩写：本来应该'},
+    "y'all":     {'ipa': 'jɔl',      'zh': 'you all 的缩写（美国南方）：你们'},
+    "who're":    {'ipa': 'ˈhuɚ',     'zh': 'who are 的缩写：是谁'},
+    "who'll":    {'ipa': 'hul',      'zh': 'who will 的缩写：谁将、谁会'},
+    "where've":  {'ipa': 'ˈwɛɹəv',   'zh': 'where have 的缩写：在哪里'},
+    "what'd":    {'ipa': 'ˈwʌtəd',   'zh': 'what did / what would 的缩写：什么'},
+    "she'll":    {'ipa': 'ʃil',      'zh': 'she will 的缩写：她将、她会'},
+    "how're":    {'ipa': 'ˈhaʊɚ',    'zh': 'how are 的缩写：怎么样'},
+    "could've":  {'ipa': 'ˈkʊdəv',   'zh': 'could have 的缩写：本来可以'},
+    "might've":  {'ipa': 'ˈmaɪtəv',  'zh': 'might have 的缩写：可能已经'},
+    "c'mon":     {'ipa': 'kəˈmɑn',   'zh': 'come on 的口语写法：来吧、快点'},
+    # Not a contraction: the interval between two acts, and a word these books
+    # use for what it means on a programme.
+    "entr'acte": {'ipa': 'ˈɑntɹˌækt', 'zh': '幕间休息、幕间表演'},
+}
+
 SYSTEM = (
     # This prompt arrived from germanic-literature still describing that
     # shelf's horror novel, heavy metal and Traditional Chinese, none of which
@@ -205,6 +279,15 @@ def main():
         del argv[i:i + 1 + len(words)]
 
     have = load()
+
+    # The hand-written entries first, and saved straight away: they need no key,
+    # and a run that dies on the API afterwards should still have delivered them.
+    added = {w: e for w, e in HAND.items() if w not in have}
+    if added:
+        have.update(added)
+        save(have)
+        print(f'hand-written entries added: {len(added)}')
+
     todo = [w for w in (words or wordlist(chapter)) if w not in have]
     if limit:
         todo = todo[:limit]

@@ -788,6 +788,20 @@ function lookup(key) {
                  key.replace(/ing$/, ''), key.replace(/ing$/, 'e'), key + 'g',
                  key.replace(/(.)\1ing$/, '$1'), key.replace(/(.)\1ed$/, '$1')];
   for (const k of tries) if (k !== key && d[k]) return [k, d[k]];
+  // A hyphenated compound falls back to its head, then its first part: t-shirt
+  // to shirt, good-looking to look, twenty-two to two. 749 forms in the three
+  // books, nearly all of them once or twice, so glossing them one by one would
+  // be a week's work for a word she can already half read. The head is the
+  // English one, hence last part first. The parts have no hyphen, so this
+  // recurs exactly one level.
+  if (key.includes('-')) {
+    const parts = key.split('-').filter(Boolean);
+    if (parts.length > 1)
+      for (const p of [parts[parts.length - 1], parts[0]]) {
+        const hit = lookup(p);
+        if (hit) return hit;
+      }
+  }
   return null;
 }
 // The headword a token files under: "hunched" -> "hunched", "Guitars," -> "guitar".
