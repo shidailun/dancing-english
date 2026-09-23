@@ -206,10 +206,13 @@ def align(code):
 
 
 def main():
-    codes = sys.argv[1:] or [c for c in codes() if (AUDIO / f'{c}.mp3').exists()]
-    if not codes:
+    # Not `codes = ...`: that rebinds the imported codes() for the whole
+    # function, so the no-argument form died on its own name before aligning
+    # anything. One chapter at a time always worked, which is how it hid.
+    todo = sys.argv[1:] or [c for c in codes() if (AUDIO / f'{c}.mp3').exists()]
+    if not todo:
         sys.exit('no narrated chapters yet - run scripts/narrate.py first')
-    for c in codes:
+    for c in todo:
         align(c)
 
 
