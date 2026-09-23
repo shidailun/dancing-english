@@ -34,31 +34,41 @@
   a{color:var(--hot)}
   .wrap{max-width:46rem;margin:0 auto;padding:0 16px}
 
-  /* ---------- shelf: the three covers, nothing else ---------- */
+  /* ---------- shelf: the covers, nothing else ---------- */
   /* They used to sit three across whatever the screen. On a phone that made
      each cover a third of 390px -- about 110px wide, 165 tall -- floating in
      the middle of an 800px screen: "the dancing one opening screen wastes most
-     of the space", 23 Sep, and it wasted about four fifths of it.
-     Three 2:3 covers fill more of a screen stacked than in a row whenever the
-     screen is taller than 2:3, which is every phone held upright; a row wins on
-     anything wider. So the direction follows the shape of the screen and the
-     covers are sized to fill it either way: each button takes an equal share of
-     the long side and the cover grows to fill it. No max-width on this screen
-     either -- .wrap's 46rem is right for a page of text and wrong for a
-     picture. */
+     of the space", 23 Sep, and it wasted about four fifths of it. Then they
+     stacked, which filled about a third of the screen: better, and still
+     divided by however many books there are.
+     "a new one is coming, so can the three covers be side scrollable" -- so
+     they no longer divide anything. One cover at a time, near enough the full
+     width, and the shelf scrolls sideways for the rest: a fourth book makes the
+     others no smaller, and the fifth does not either. It paints about half the
+     screen where stacking painted a third.
+     Sized by height, not width, because the three covers are not the same shape
+     (1.5, 1.5375 and 1.6) and a fixed box would crop or squash one of them.
+     120vw is the cap: enough of the next cover shows past the edge of this one
+     to say the shelf goes on, which is the whole job of a carousel that carries
+     no arrows and no dots. Aligned to the start rather than centred, because a
+     centred snap needs the padding computed from the narrowest cover on the
+     shelf and then the widest sits flush to the edge with nothing peeking.
+     Edge to edge: .wrap's 46rem and its gutter are right for a page of text and
+     wrong for a picture that is meant to run off the side. */
   #shelf{display:none}
-  .shelf{display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:14px;height:100dvh;
-    padding:calc(env(safe-area-inset-top) + 16px) 0 calc(env(safe-area-inset-bottom) + 16px)}
+  #shelf .wrap{max-width:none;padding:0}
+  .shelf{--h:min(calc(100dvh - env(safe-area-inset-top)
+                       - env(safe-area-inset-bottom) - 40px), 120vw);
+    display:flex;flex-direction:row;align-items:center;gap:14px;height:100dvh;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+    scroll-snap-type:x mandatory;
+    padding-inline:16px;scroll-padding-inline:16px;
+    scrollbar-width:none}
+  .shelf::-webkit-scrollbar{display:none}
   .shelf button{background:none;border:0;padding:0;cursor:pointer;
-    flex:1 1 0;min-height:0;min-width:0;width:100%;
-    display:flex;align-items:center;justify-content:center}
-  .shelf img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;
+    flex:0 0 auto;scroll-snap-align:start}
+  .shelf img{display:block;height:var(--h);width:auto;max-width:92vw;
     border-radius:2px;box-shadow:0 10px 30px rgba(0,0,0,.7)}
-  @media (min-aspect-ratio: 2/3){
-    .shelf{flex-direction:row}
-    .shelf button{width:auto;height:100%}
-  }
 
   /* ---------- library ---------- */
   #library{display:none}
