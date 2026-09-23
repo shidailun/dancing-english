@@ -38,3 +38,8 @@ build_data/narrate.log
 build_data/*.mp3
 build_data/held/
 .wrangler/
+
+# Backups and the proxy job: book text, kept on disk, never in git, like the packs
+build_data/backup_*/
+build_data/zhjob/
+build_data/dict.*.json
