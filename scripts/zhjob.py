@@ -1,0 +1,82 @@
+# -*- coding: utf-8 -*-
+"""Simplified Chinese for the three books, translated by `claude -p` on the
+proxy laptop (his Max plan, no API key) rather than by the Batches API.
+
+    python scripts/zhjob.py make      # build_data/zhjob/: todo/*.tsv + names.md + run.py
+    (copy build_data/zhjob to the proxy, run `python run.py` there, copy out/ back)
+    python scripts/zhjob.py collect   # out/*.json -> build_data/zh/<code>.json
+    python scripts/handzh.py apply    # into the packs
+
+Sentences only, as in souls-reader: segments stay untranslated. A chunk is ~100
+sentences with the three before it as context, so a pronoun or a clipped reply
+at the top of a chunk is not translated blind.
+"""
+import json, sys, io, shutil
+from pathlib import Path
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+ROOT = Path(__file__).resolve().parents[1]
+DATA = ROOT / 'src' / 'data'
+JOB = ROOT / 'build_data' / 'zhjob'
+ZH = ROOT / 'build_data' / 'zh'
+CHUNK = 100
+sys.path.insert(0, str(Path(__file__).parent))
+from books import codes  # noqa: E402
+CODES = codes()
+
+
+def sentences(pack):
+    return [s for p in pack['paragraphs'] for s in p['sentences']]
+
+
+def make():
+    todo = JOB / 'todo'
+    todo.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for code in CODES:
+        pack = json.loads((DATA / f'{code}.json').read_text(encoding='utf-8'))
+        ss = sentences(pack)
+        have = json.loads((ZH / f'{code}.json').read_text(encoding='utf-8')) if (ZH / f'{code}.json').exists() else {}
+        for i in range(0, len(ss), CHUNK):
+            part = ss[i:i + CHUNK]
+            if all(s.get('translation') or have.get(s['id']) for s in part):
+                continue
+            ctx = ss[max(0, i - 3):i]
+            clean = lambda t: ' '.join(t.split())
+            lines = [f'# {pack["title"]}']
+            lines += [f'CONTEXT\t{clean(s["text"])}' for s in ctx]
+            lines += [f'{s["id"]}\t{clean(s["text"])}' for s in part]
+            (todo / f'{code}_{i // CHUNK:02d}.tsv').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+            n += 1
+    shutil.copy(ROOT / 'build_data' / 'names.md', JOB / 'names.md')
+    shutil.copy(Path(__file__).parent / 'zhjob_run.py', JOB / 'run.py')
+    print(f'{n} chunks in {todo}')
+
+
+def paired(zh):
+    """Straight quotes the runner could not match to the English: nearly all
+    are marks the model added around a word the English sets in italics or
+    leaves bare (互相"砍头", 写着"早日康复"), so they open and close within the
+    sentence and alternate “ ”. An odd count is left alone rather than guessed."""
+    if zh.count('"') % 2:
+        return zh
+    marks = iter('“”' * zh.count('"'))
+    return ''.join(next(marks) if c == '"' else c for c in zh)
+
+
+def collect():
+    ZH.mkdir(parents=True, exist_ok=True)
+    got = {}
+    for f in sorted((JOB / 'out').glob('*.json')):
+        code = f.stem.rsplit('_', 1)[0]
+        got.setdefault(code, {}).update(
+            {k: paired(v) for k, v in json.loads(f.read_text(encoding='utf-8')).items()})
+    for code, zh in got.items():
+        old = json.loads((ZH / f'{code}.json').read_text(encoding='utf-8')) if (ZH / f'{code}.json').exists() else {}
+        old.update(zh)
+        (ZH / f'{code}.json').write_text(json.dumps(old, ensure_ascii=False, indent=0), encoding='utf-8')
+    print(f'{sum(map(len, got.values()))} sentences over {len(got)} chapters')
+
+
+if __name__ == '__main__':
+    {'make': make, 'collect': collect}.get(sys.argv[1] if len(sys.argv) > 1 else '', lambda: print(__doc__))()
