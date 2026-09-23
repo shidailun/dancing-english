@@ -53,11 +53,18 @@ def make():
     print(f'{n} chunks in {todo}')
 
 
-def paired(zh):
+def paired(zh, en=''):
     """Straight quotes the runner could not match to the English: nearly all
     are marks the model added around a word the English sets in italics or
     leaves bare (互相"砍头", 写着"早日康复"), so they open and close within the
-    sentence and alternate “ ”. An odd count is left alone rather than guessed."""
+    sentence and alternate “ ”.
+
+    The one odd case with an answer is The Winner, whose English has straight
+    quotes too: a speech running over two sentences opens in one and closes in
+    the next, one " each. The English says which: at its start it opens,
+    anywhere else it closes. Any other odd count is left alone, not guessed."""
+    if zh.count('"') == 1 and en.count('"') == 1:
+        return zh.replace('"', '“' if en.lstrip().startswith('"') else '”')
     if zh.count('"') % 2:
         return zh
     marks = iter('“”' * zh.count('"'))
@@ -66,11 +73,15 @@ def paired(zh):
 
 def collect():
     ZH.mkdir(parents=True, exist_ok=True)
-    got = {}
+    got, en = {}, {}
     for f in sorted((JOB / 'out').glob('*.json')):
         code = f.stem.rsplit('_', 1)[0]
+        if code not in en:
+            pack = json.loads((DATA / f'{code}.json').read_text(encoding='utf-8'))
+            en[code] = {s['id']: s['text'] for s in sentences(pack)}
         got.setdefault(code, {}).update(
-            {k: paired(v) for k, v in json.loads(f.read_text(encoding='utf-8')).items()})
+            {k: paired(v, en[code].get(k, ''))
+             for k, v in json.loads(f.read_text(encoding='utf-8')).items()})
     for code, zh in got.items():
         old = json.loads((ZH / f'{code}.json').read_text(encoding='utf-8')) if (ZH / f'{code}.json').exists() else {}
         old.update(zh)
