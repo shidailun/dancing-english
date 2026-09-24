@@ -29,7 +29,7 @@ the book's own vocabulary (U+FFFC + "ris sat" -> Kris, which the book uses
 import json, re, sys, io
 from collections import Counter
 from pathlib import Path
-from books import BOOKS, AUTHOR, codes as all_codes, book_of
+from books import BOOKS, AUDIOBOOKS, work_entry, codes as all_codes, book_of
 
 
 def title_case(s):
@@ -226,13 +226,20 @@ def main():
               + (f'  ({kept} translations carried over)' if kept else ''))
 
     if len(codes) == len(all_codes()):       # a full build owns the registry
+        # ...but not the audiobooks' part of it (add_mermaid.py writes that):
+        # carry their works, chapters and readers over from the registry as is.
+        old = {}
+        if (PUB / 'registry.json').exists():
+            old = json.loads((PUB / 'registry.json').read_text(encoding='utf-8'))
+        audio = [w for w in old.get('works', []) if w['slug'] in {b['slug'] for b in AUDIOBOOKS}]
+        audio_codes = {c for w in audio for c in w['chapters']}
+        chapters += [c for c in old.get('chapters', []) if c['id'] in audio_codes]
+        readers = {c['id']: 'Narration' for c in chapters}
+        readers.update({k: v for k, v in old.get('readers', {}).items() if k in audio_codes})
         registry = {
-            'works': [{'slug': b['slug'], 'dialect': 'english',
-                       'title': b['title'], 'author': AUTHOR,
-                       'zh': b['zh'], 'cover': f"cover-{b['slug']}.jpg",
-                       'rev': b['rev'], 'chapters': all_codes(b['slug'])} for b in BOOKS],
+            'works': [work_entry(b) for b in BOOKS] + audio,
             'chapters': chapters,
-            'readers': {c['id']: 'Narration' for c in chapters},
+            'readers': readers,
             'storyCodes': {},
         }
         (PUB / 'registry.json').write_text(

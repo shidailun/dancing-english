@@ -7,7 +7,7 @@ Rerun-safe: finished chunks are skipped. Progress in run.log.
     python run.py            # 4 at a time
     python run.py 2          # fewer, if the plan's limit bites
 """
-import json, subprocess, sys, shutil, time
+import json, os, subprocess, sys, shutil, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -15,7 +15,12 @@ HERE = Path(__file__).resolve().parent
 TODO, OUT, LOG = HERE / 'todo', HERE / 'out', HERE / 'run.log'
 EMPTY = HERE / 'cwd'          # no CLAUDE.md, no repo: the call sees only the prompt
 NAMES = (HERE / 'names.md').read_text(encoding='utf-8')
-CLAUDE = shutil.which('claude.exe') or str(Path.home() / '.local' / 'bin' / 'claude.exe')
+# claude.exe from the native installer, or the npm install's claude.cmd.
+CLAUDE = (shutil.which('claude.exe') or shutil.which('claude')
+          or str(Path.home() / '.local' / 'bin' / 'claude.exe'))
+# Without the API key, so a laptop that has one set still translates on the
+# plan's login instead of billing the API (and failing on the key's warning).
+ENV = {k: v for k, v in os.environ.items() if k != 'ANTHROPIC_API_KEY'}
 
 # Characters that exist only in Traditional. One in a reply means the model
 # slipped script, and the chunk is asked again.
@@ -94,7 +99,7 @@ def one(tsv):
         try:
             r = subprocess.run([CLAUDE, '-p', '--model', 'opus', '--output-format', 'text'],
                                input=prompt, capture_output=True, text=True,
-                               encoding='utf-8', cwd=EMPTY, timeout=1800)
+                               encoding='utf-8', cwd=EMPTY, env=ENV, timeout=1800)
             zh, why = check(r.stdout, ids) if r.returncode == 0 else (None, f'exit {r.returncode}: {r.stderr[:200] or r.stdout[:200]}')
         except subprocess.TimeoutExpired:
             zh, why = None, 'timeout'

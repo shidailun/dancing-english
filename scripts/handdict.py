@@ -21,6 +21,7 @@ from collections import Counter
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / 'build_data' / 'chapters'
+PACKS = ROOT / 'src' / 'data'                  # for books with no chapter text (mer)
 HAND = ROOT / 'build_data' / 'dict'
 DICT = ROOT / 'public' / 'dict.json'
 WORD = re.compile(r"[^\W\d_][^\W\d_'’-]*")      # build_dict.py's tokeniser
@@ -33,10 +34,19 @@ def have():
     return d
 
 
+def text(code):
+    """A chapter's text: the epub text if there is one, else the pack's sentences
+    (the audiobook, which arrives as an alignment and has no chapter file)."""
+    if (SRC / f'{code}.txt').exists():
+        return (SRC / f'{code}.txt').read_text(encoding='utf-8')
+    pack = json.loads((PACKS / f'{code}.json').read_text(encoding='utf-8'))
+    return '\n'.join(s['text'] for p in pack['paragraphs'] for s in p['sentences'])
+
+
 def todo(codes):
     c = Counter()
     for code in codes:
-        c.update(w.lower() for w in WORD.findall((SRC / f'{code}.txt').read_text(encoding='utf-8')))
+        c.update(w.lower() for w in WORD.findall(text(code)))
     got = have()
     for w, _ in c.most_common():
         if w not in got:

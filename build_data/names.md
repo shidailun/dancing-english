@@ -35,3 +35,24 @@ Snow Queen 雪之女王 · Sugar Plum Fairy 糖梅仙子 · Giselle 《吉赛尔
 barre 把杆 · pointe shoes 足尖鞋 · corps de ballet 群舞 · principal 首席 · soloist 独舞演员 · pas de deux 双人舞
 arabesque 阿拉贝斯克 · plié 蹲 · tendu 擦地 · développé 慢抬腿 · fouetté 挥鞭转 · pirouette 单足旋转 · grand jeté 大跳
 ballet master 芭蕾排练者 · rehearsal 排练 · leotard 练功服 · tutu 芭蕾舞裙
+
+## The Mermaid's Tale (mer) — first person; the narrator "I" is a woman past forty in Taipei
+This one is different: a CRIB. The English is Darryl Sterk's free translation of Lee
+Wei-Jing's Taiwanese novel 人鱼纪, and it often departs from the original. Translate
+the ENGLISH as it stands, closely, word for word where Chinese allows, so the
+student can see how each English phrase is built. Do not recall or reconstruct the
+original novel's wording, do not smooth the English's images into Chinese idiom,
+and prefer plain clarity to elegance. Names below are the original's, in
+Simplified characters, because the people are Taiwanese.
+Quotation marks: the English is British, with ‘ ’ for speech and “ ” for a quote
+inside it. The Chinese uses “ ” for speech and ‘ ’ inside it: swap them.
+Donny 东尼 (her dance teacher) · Youlin 又林 · Youlin's brother 又林哥哥 · Mitsuki 光希 · Meixin 美心
+Susan 子恩 · Sister Shen 沈姊 · Mrs Lai 赖妈妈 · Mr Lai 赖爸爸 · Carmen 卡门
+the Fortress “堡垒” (the dance studio) · Chubby “小胖” · Moneybags 金主
+Joanna Leunis 乔安娜·路妮丝 · Bryan Watson 布莱恩·沃森 · Viktoria Franova 维多利亚·法兰瓦
+Riccardo Cocchi 里加多·柯奇 · Slavik Kryklyvyy 斯拉维克·克雷克里维 · Yulia Zagoruychenko 尤莉雅·扎格鲁伊琴科
+Karina Smirnoff 卡丽娜·斯米尔诺夫 · Kanjani Eight 关八 · Outlaws of the Marsh 《水浒传》
+Blackpool 黑池 · Keelung 基隆 · Foochow 福州 · Linsen North Road 林森北路 · Nanching West Road 南京西路
+Taipei 台北 · Hsinchu 新竹 · MRT 捷运 · aunties and uncles class 叔叔阿姨班
+Dances: ballroom (dancing) 国标舞 · Latin 拉丁舞 · Standard 标准舞 · rumba 伦巴 · cha cha 恰恰 · samba 桑巴
+jive 捷舞 · paso doble 斗牛舞 · Waltz 华尔兹 · Tango 探戈 · Foxtrot 狐步舞 · Quickstep 快步舞 · partner 舞伴

@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """The three books, in shelf order. Every script reads its chapter codes from
 here rather than counting chapters itself, which is what souls-reader did with
 range(1, 32) scattered through six files.
@@ -42,7 +42,39 @@ BOOKS = [
 # novels; Ava, the most expressive, gets the ballroom book.
 AUTHOR = 'Erin Bomboy'
 
-BY_SLUG = {b['slug']: b for b in BOOKS}
+# Books that arrive already recorded: a human narrator's audiobook, aligned to
+# the text elsewhere (Recordings/mermaid_alignment) and brought in whole by
+# scripts/add_mermaid.py. They are kept out of BOOKS on purpose, so codes() -
+# and with it extract_chapters, build_pack, narrate and align - never sees them:
+# there is no epub to extract, and a TTS narration or an MMS re-alignment would
+# overwrite the reader's own voice and Whisper's word timings.
+# The Mermaid's Tale is Lee Wei-Jing's 人魚紀 in Darryl Sterk's translation
+# (ISBN 9781398507609), with the Simon & Schuster Audio recording. Its Word
+# Review button sits in the pink right of "THE", above the apostrophe.
+# 'note' heads its chapter list: the English departs freely from 人鱼纪, so its
+# Chinese is a new crib of the English (build_data/names.md says so to the
+# translator), and the reader should not take it for the novel's own text.
+AUDIOBOOKS = [
+    {'slug': 'mer', 'title': 'The Mermaid’s Tale',
+     'zh': '人鱼纪', 'author': 'Lee Wei-Jing', 'translator': 'Darryl Sterk',
+     'chapters': 12, 'rev': [0.76, 0.065],
+     'note': {'en': 'The Chinese here is a crib: a close, sentence-by-sentence '
+                    'rendering of this English, which is a free translation. '
+                    'It is not Lee Wei-Jing’s original.',
+              'zh': '这里的中文是逐句对照的直译稿，译自这个英文版本（英文本身是意译），'
+                    '并非李维菁的原著《人鱼纪》。'}},
+]
+
+BY_SLUG = {b['slug']: b for b in BOOKS + AUDIOBOOKS}
+
+
+def work_entry(b):
+    """A book's entry in registry.json's 'works'."""
+    return {'slug': b['slug'], 'dialect': 'english', 'title': b['title'],
+            'author': b.get('author', AUTHOR), 'zh': b['zh'],
+            'cover': f"cover-{b['slug']}.jpg", 'rev': b['rev'],
+            'chapters': [f"{b['slug']}{n:02d}" for n in range(1, b['chapters'] + 1)],
+            **({'note': b['note']} if 'note' in b else {})}
 
 
 def codes(slug=None):

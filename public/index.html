@@ -90,7 +90,11 @@
     background:rgba(0,0,0,.28)!important;color:#fff!important;border:2px solid rgba(255,255,255,.75)!important;
     backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);text-shadow:0 1px 4px #000;
     font-size:1.02rem;font-weight:700;letter-spacing:.04em;padding:8px 20px;border-radius:999px;white-space:nowrap}
-  #library .wrap{position:relative;z-index:1;padding-top:calc(env(safe-area-inset-top) + var(--coverh))}
+  /* No wider than the cover it scrolls over, less the gutter: "make the TOC
+     narrower than the cover", 24 Sep. It was .wrap's 46rem, which on a laptop
+     (cover limited by the screen's height) ran the list out past both edges. */
+  #library .wrap{position:relative;z-index:1;padding-top:calc(env(safe-area-inset-top) + var(--coverh));
+    max-width:calc(var(--coverh) / var(--ar))}
   /* See-through list: the cover stays visible behind it as it scrolls up. */
   #library .chapters{position:relative;z-index:1;gap:0;margin-top:0;border:0;background:none}
   #library .chapters li{background:rgba(0,0,0,.3);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);border-top:1px solid rgba(255,255,255,.12)}
@@ -122,6 +126,9 @@
   .chapters .t{flex:1}
   .chapters .meta{color:var(--dim);font-size:.72rem;white-space:nowrap}
   .chapters .done{color:var(--zh)}
+  /* A book's word about itself, above its chapters: what its Chinese is. */
+  .chapters .bnote{padding:12px 16px;font-size:.8rem;line-height:1.55;color:var(--dim);text-shadow:0 1px 3px #000}
+  .chapters .bnote .zh{display:block;font-family:var(--han);color:var(--zh);margin-top:.2em}
 
   /* ---------- toolbar ---------- */
   #bar{position:sticky;top:0;z-index:5;background:rgba(11,11,13,.94);
@@ -530,6 +537,12 @@ function renderBook(slug) {
 
   const ul = $('#chapters');
   ul.textContent = '';
+  if (work.note) {
+    const li = document.createElement('li');
+    li.className = 'bnote';
+    li.innerHTML = `${work.note.en}<span class="zh">${work.note.zh}</span>`;
+    ul.appendChild(li);
+  }
   work.chapters.forEach((code, i) => {
     const c = chapterOf(code);
     const li = document.createElement('li');

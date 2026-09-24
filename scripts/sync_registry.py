@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from books import BOOKS, AUTHOR, codes as all_codes  # noqa: E402
+from books import BOOKS, AUDIOBOOKS, work_entry  # noqa: E402
 
 PUB = Path(__file__).resolve().parent.parent / 'public' / 'texts'
 REG = PUB / 'registry.json'
@@ -32,10 +32,8 @@ def main():
     reg = json.loads(REG.read_text(encoding='utf-8'))
     before = {w['slug']: dict(w) for w in reg['works']}
 
-    fresh = [{'slug': b['slug'], 'dialect': 'english',
-              'title': b['title'], 'author': AUTHOR,
-              'zh': b['zh'], 'cover': f"cover-{b['slug']}.jpg",
-              'rev': b['rev'], 'chapters': all_codes(b['slug'])} for b in BOOKS]
+    # An audiobook is listed only once add_mermaid.py has put its packs in.
+    fresh = [work_entry(b) for b in BOOKS + AUDIOBOOKS if b['slug'] in before or b in BOOKS]
 
     # A book that gained or lost a chapter needs its packs built, not this.
     for w in fresh:
@@ -43,7 +41,7 @@ def main():
         if old and old['chapters'] != w['chapters']:
             sys.exit(f"{w['slug']}: chapter list changed - this is a build_pack.py job")
 
-    changes = [(w['slug'], k, before[w['slug']][k], v)
+    changes = [(w['slug'], k, before[w['slug']].get(k), v)
                for w in fresh for k, v in w.items()
                if w['slug'] in before and before[w['slug']].get(k) != v]
     if not changes:

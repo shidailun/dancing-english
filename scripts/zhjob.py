@@ -3,6 +3,7 @@
 proxy laptop (his Max plan, no API key) rather than by the Batches API.
 
     python scripts/zhjob.py make      # build_data/zhjob/: todo/*.tsv + names.md + run.py
+    python scripts/zhjob.py make mer  # just these books (an audiobook is only reached this way)
     (copy build_data/zhjob to the proxy, run `python run.py` there, copy out/ back)
     python scripts/zhjob.py collect   # out/*.json -> build_data/zh/<code>.json
     python scripts/handzh.py apply    # into the packs
@@ -21,7 +22,7 @@ JOB = ROOT / 'build_data' / 'zhjob'
 ZH = ROOT / 'build_data' / 'zh'
 CHUNK = 100
 sys.path.insert(0, str(Path(__file__).parent))
-from books import codes  # noqa: E402
+from books import BY_SLUG, codes  # noqa: E402
 CODES = codes()
 
 
@@ -29,11 +30,12 @@ def sentences(pack):
     return [s for p in pack['paragraphs'] for s in p['sentences']]
 
 
-def make():
+def make(slugs=()):
     todo = JOB / 'todo'
+    chosen = [f"{s}{n:02d}" for s in slugs for n in range(1, BY_SLUG[s]['chapters'] + 1)] or CODES
     todo.mkdir(parents=True, exist_ok=True)
     n = 0
-    for code in CODES:
+    for code in chosen:
         pack = json.loads((DATA / f'{code}.json').read_text(encoding='utf-8'))
         ss = sentences(pack)
         have = json.loads((ZH / f'{code}.json').read_text(encoding='utf-8')) if (ZH / f'{code}.json').exists() else {}
@@ -90,4 +92,8 @@ def collect():
 
 
 if __name__ == '__main__':
-    {'make': make, 'collect': collect}.get(sys.argv[1] if len(sys.argv) > 1 else '', lambda: print(__doc__))()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ''
+    if cmd == 'make':
+        make(sys.argv[2:])
+    else:
+        {'collect': collect}.get(cmd, lambda: print(__doc__))()
